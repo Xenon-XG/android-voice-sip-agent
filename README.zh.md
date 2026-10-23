@@ -1,6 +1,6 @@
 # Voice SIP Agent
 
-本分支为重新审查的固定中文界面版：从原版仅替换 139 处显示文字，恢复原校验、选项和通知数据链路，保留业务共用状态、错误及日志原文。逐页核对说明见 [显示内容与业务逻辑审查](docs/LOCALIZATION_AUDIT.zh.md)，源码一致性验证见 [汉化说明](docs/LOCALIZATION.md)。
+应用界面已支持简体中文，随 Android 系统语言自动切换；其他语言使用英文。汉化仅涉及显示层，协议与配置取值保持不变。诊断日志及底层错误详情保留原文。验证方式见 [汉化说明](docs/LOCALIZATION.md)。
 
 [English](README.md)
 

@@ -79,7 +79,7 @@ class GatewayService : Service() {
 
     private fun promote(health: HealthState) {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "网关状态", NotificationManager.IMPORTANCE_LOW))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.ui_gateway_status), NotificationManager.IMPORTANCE_LOW))
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, build(summary(health)), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
@@ -115,8 +115,8 @@ class GatewayService : Service() {
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_gateway)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(text)
-            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setContentText(displayStatus(text))
+            .setStyle(Notification.BigTextStyle().bigText(displayStatus(text)))
             .setOngoing(true)
             .setContentIntent(open)
             .build()
