@@ -98,7 +98,7 @@ jobs:
 
           附件包含完整源码、汉化补丁和 SHA-256 校验值。资源键、占位符、代码引用及核心模块无改动检查已通过。
 
-          **这是预发布版本，未完成真机通话验证。** Android 测试和 APK 构建由同一工作流继续执行；只有全部构建测试成功，才会附加 `arm64-v8a` 调试签名 APK。若未看到 APK 附件，请查看工作流结果。调试包用于测试，不是正式签名发行包，不能保证覆盖安装已有版本。
+          **这是预发布版本，未完成真机通话验证。** Android 单元测试和 APK 构建已通过；同一工作流随后附加 `arm64-v8a` 调试签名 APK。若未看到 APK 附件，请查看工作流结果。调试包用于测试，不是正式签名发行包，不能保证覆盖安装已有版本。
           NOTES
           printf '\n提交：`%s`\n\n构建记录：https://github.com/%s/actions/runs/%s\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-notes.md
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
@@ -122,7 +122,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y swig build-essential autoconf automake libtool pkg-config
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37' 'build-tools;37.0.0' 'ndk;28.2.13676358'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;28.2.13676358'
       - uses: gradle/actions/setup-gradle@v4
       - name: Build native SIP libraries without changing native configuration
         env:
