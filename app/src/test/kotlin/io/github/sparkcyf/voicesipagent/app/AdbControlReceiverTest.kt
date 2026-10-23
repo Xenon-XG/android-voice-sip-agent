@@ -36,6 +36,28 @@ class AdbControlReceiverTest {
         assertFalse(AppLog.tail.value.last().contains("test-secret"))
     }
 
+    @Test fun proxyProvisionCapturesTypedFieldsWithoutEchoingCredentials(): Unit = Fixture().use { f ->
+        var update: ((GatewaySettings) -> GatewaySettings)? = null
+        doAnswer { update = it.getArgument(0); null }.`when`(f.runtime).applySettings(any() ?: { it })
+        val args = mutableMapOf<String, Any>("op" to "provision", "socks5_enabled" to true,
+            "socks5_host" to "127.0.0.1", "socks5_port" to 10809,
+            "socks5_username" to "proxy-secret-user", "socks5_password" to "proxy-secret-password")
+        f.receive(args)
+        args["socks5_password"] = "changed-after-dispatch"
+        val current = GatewaySettings(sipStack = SipStack.BUILTIN, server = "pbx.invalid")
+        assertEquals(current.copy(socks5Enabled = true, socks5Port = 10809,
+            socks5Username = "proxy-secret-user", socks5Password = "proxy-secret-password"), update!!(current))
+        f.drain()
+        verify(f.pending).setResult(1, "ok: settings snapshot", null)
+        assertFalse(AppLog.tail.value.last().contains("proxy-secret"))
+        f.receive(mapOf("op" to "provision", "socks5_enabled" to false, "socks5_username" to "", "socks5_password" to ""))
+        val disabled = update!!(current.copy(socks5Enabled = true, socks5Username = "old", socks5Password = "old"))
+        assertFalse(disabled.socks5Enabled)
+        assertEquals("", disabled.socks5Username)
+        assertEquals("", disabled.socks5Password)
+        f.drain()
+    }
+
     @Test fun invalidCommandsRejectBeforeRuntimeMutationWithoutEchoingValues(): Unit = Fixture().use { f ->
         val invalidProvisionArgs = listOf(
             mapOf("port" to 0), mapOf("port" to 65536), mapOf("port" to "5060"),
@@ -43,6 +65,9 @@ class AdbControlReceiverTest {
             mapOf("audio_method" to -1), mapOf("audio_method" to 3),
             mapOf("call_access" to -1), mapOf("call_access" to 3),
             mapOf("password" to 123),
+            mapOf("socks5_enabled" to "true"), mapOf("socks5_enabled" to 1),
+            mapOf("socks5_port" to "10808"), mapOf("socks5_port" to 0), mapOf("socks5_port" to 65536),
+            mapOf("socks5_host" to true), mapOf("socks5_username" to 123), mapOf("socks5_password" to true),
             mapOf("hold_sip" to "false"), mapOf("passwrod" to "test-secret"),
         )
         val invalid = invalidProvisionArgs.map {

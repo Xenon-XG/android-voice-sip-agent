@@ -138,7 +138,7 @@ class RtpSession(
                 pkt.setData(buf, 0, buf.size)
                 socket.receive(pkt)
             } catch (e: SocketException) {
-                if (closed) return else continue
+                if (closed || socket.isClosed) return else continue
             } catch (_: Exception) {
                 continue
             }

@@ -8,6 +8,7 @@ import android.util.Base64
 import io.github.sparkcyf.voicesipagent.gateway.BusyPolicy
 import io.github.sparkcyf.voicesipagent.privileged.AudioMethod
 import io.github.sparkcyf.voicesipagent.privileged.CallAccess
+import io.github.sparkcyf.voicesipagent.sip.Socks5ProxyConfig
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -33,6 +34,12 @@ data class GatewaySettings(
     val holdSipWhenNotReady: Boolean = true,
     val username: String = "",
     val password: String = "",
+    /** Optional SOCKS5 UDP relay; never silently fall back to direct networking. */
+    val socks5Enabled: Boolean = false,
+    val socks5Host: String = "127.0.0.1",
+    val socks5Port: Int = 10808,
+    val socks5Username: String = "",
+    val socks5Password: String = "",
     val domain: String = "",
     val localSipPort: Int = 5062,
     /** SIP extension / DID that receives cellular inbound calls; blank = the SIP username (trunk DID). */
@@ -47,8 +54,16 @@ data class GatewaySettings(
 ) {
     val sipConfigured: Boolean get() = server.isNotBlank() && username.isNotBlank() && password.isNotEmpty()
 
+    val socks5Error: String? get() = socks5SettingsError(socks5Enabled, socks5Host, socks5Port,
+        socks5Username, socks5Password, sipStack, sipTransport)
+
+    fun socks5ProxyConfig(): Socks5ProxyConfig? {
+        require(socks5Error == null) { requireNotNull(socks5Error) }
+        return if (socks5Enabled) Socks5ProxyConfig(socks5Host.trim(), socks5Port, socks5Username, socks5Password) else null
+    }
+
     override fun toString() =
-        "GatewaySettings(takeover=$takeover muteEarpiece=$muteEarpiece stack=$sipStack server=$server:$port/$sipTransport srtp=$srtp holdSip=$holdSipWhenNotReady user=$username target=$inboundTarget)"
+        "GatewaySettings(takeover=$takeover muteEarpiece=$muteEarpiece stack=$sipStack server=$server:$port/$sipTransport srtp=$srtp holdSip=$holdSipWhenNotReady user=$username target=$inboundTarget socks5=$socks5Enabled)"
 }
 
 enum class SipStack(val id: String) {
@@ -64,7 +79,25 @@ enum class SipStack(val id: String) {
     }
 }
 
-/** SharedPreferences, with the SIP password sealed by an Android Keystore AES-GCM key. */
+/** A bare hostname/IP only; reject URI credentials before logging or displaying a host. */
+internal fun validSocks5Host(host: String): Boolean = host.isNotBlank() &&
+    host.trim().none { it.isWhitespace() || it.isISOControl() || it == '\\' || it in "/@?#" }
+
+/** Validation messages are fixed text: never include proxy credentials or untrusted field values. */
+internal fun socks5SettingsError(enabled: Boolean, host: String, port: Int?, username: String,
+    password: String, stack: SipStack, transport: String): String? = when {
+    !enabled -> null
+    stack != SipStack.BUILTIN || transport.lowercase() != "udp" -> "SOCKS5 requires the built-in UDP stack; pjsua2 is not supported."
+    !validSocks5Host(host) ->
+        "Enter a SOCKS5 host without a scheme, path or credentials."
+    port == null || port !in 1..65535 -> "SOCKS5 port must be between 1 and 65535."
+    username.isEmpty() != password.isEmpty() || username.toByteArray(Charsets.UTF_8).size > 255 ||
+        password.toByteArray(Charsets.UTF_8).size > 255 ->
+        "SOCKS5 authentication needs both username and password (1 to 255 UTF-8 bytes each), or both empty."
+    else -> null
+}
+
+/** SharedPreferences, with SIP and SOCKS5 passwords sealed by an Android Keystore AES-GCM key. */
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("gateway", Context.MODE_PRIVATE)
 
@@ -80,6 +113,11 @@ class SettingsStore(context: Context) {
         holdSipWhenNotReady = prefs.getBoolean("hold_sip_when_not_ready", true),
         username = prefs.getString("username", "")!!,
         password = prefs.getString("password_sealed", null)?.let(::unseal).orEmpty(),
+        socks5Enabled = prefs.getBoolean("socks5_enabled", false),
+        socks5Host = prefs.getString("socks5_host", "127.0.0.1")!!,
+        socks5Port = prefs.getInt("socks5_port", 10808),
+        socks5Username = prefs.getString("socks5_username", "")!!,
+        socks5Password = prefs.getString("socks5_password_sealed", null)?.let(::unseal).orEmpty(),
         domain = prefs.getString("domain", "")!!,
         localSipPort = prefs.getInt("local_sip_port", 5062),
         inboundTarget = prefs.getString("inbound_target", "")!!,
@@ -103,6 +141,11 @@ class SettingsStore(context: Context) {
             .putBoolean("hold_sip_when_not_ready", s.holdSipWhenNotReady)
             .putString("username", s.username.trim())
             .putString("password_sealed", seal(s.password))
+            .putBoolean("socks5_enabled", s.socks5Enabled)
+            .putString("socks5_host", s.socks5Host.trim())
+            .putInt("socks5_port", s.socks5Port)
+            .putString("socks5_username", s.socks5Username)
+            .putString("socks5_password_sealed", seal(s.socks5Password))
             .putString("domain", s.domain.trim())
             .putInt("local_sip_port", s.localSipPort)
             .putString("inbound_target", s.inboundTarget.trim())
@@ -152,7 +195,7 @@ class SettingsStore(context: Context) {
         c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, raw, 0, 12))
         String(c.doFinal(raw, 12, raw.size - 12))
     } catch (e: Exception) {
-        AppLog.w("stored SIP password unreadable; re-enter it", e)
+        AppLog.w("stored password unreadable; re-enter it", e)
         null
     }
 

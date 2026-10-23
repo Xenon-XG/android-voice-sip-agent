@@ -93,6 +93,7 @@ The handset microphone stays muted while bridging, so local listening does not e
 | PBX host / port | Registrar / proxy address |
 | Transport | `udp` (LAN), `tcp` or `tls` (pjsua2 only) |
 | SRTP | `off`, `optional` (offer SDES, fall back to RTP) or `mandatory` (488 otherwise); only effective with TLS |
+| SOCKS5 proxy | Off by default; host `127.0.0.1`, port `10808` (editable). Built-in UDP only; proxies must support UDP ASSOCIATE. Optional username/password, both empty or both supplied (each at most 255 UTF-8 bytes). |
 | SIP domain | Defaults to the PBX host |
 | User / password | Trunk credentials on the PBX |
 | Cellular inbound → SIP target | DID dialed on the PBX for incoming cellular calls; blank = the SIP user name |
@@ -105,6 +106,27 @@ used when takeover is next enabled.
 TLS validates the server certificate chain and host name against the Android system CA store (TLS 1.2/1.3 only)
 and accepts `*.` wildcard certificates in the left-most label (RFC 6125). There is no downgrade: if TLS fails,
 registration fails and is retried every 30 s.
+
+### SOCKS5 routing
+
+Select **Built-in UDP**, enable **SOCKS5 proxy**, and set the proxy host/port. SIP signaling and RTP
+use the proxy; failure does **not** fall back to direct SIP/RTP. pjsua2 (including UDP) is unsupported:
+the form rejects that combination, and persisted/ADB configurations stop SIP with an explicit error
+rather than starting a direct endpoint. Disabled proxy fields do not affect direct SIP. Changes wait
+for current calls to end, like other SIP settings. SIP and SOCKS5 passwords are sealed with Android
+Keystore AES-GCM; proxy credentials are omitted from settings logs and ADB replies.
+
+The initial implementation keeps the existing SIP/SDP advertised-address policy. A public proxy
+requires appropriate PBX/SBC symmetric RTP handling or a media relay. SOCKS5 UDP ASSOCIATE alone does
+not supply a public media mapping or STUN, and its BND address is not a public SDP media address.
+Hostnames (including proxy and existing SIP resolution) may still use the OS DNS resolver: the
+no-direct guarantee applies to SIP/RTP, not every device connection. SOCKS5 itself does not encrypt
+traffic or authentication; use a trusted local proxy or a protected path to a remote proxy.
+
+Keep the proxy available while the gateway is in use. While SIP is allowed to register, transport
+failures retry registration after 30 s. After the proxy/network recovers, use
+**Reconnect SIP** if registration does not recover; in-progress calls may fail and must be redialed.
+This feature does not supply iOS background execution or SIP push notifications.
 
 ### Gateway status and recovery
 
@@ -143,6 +165,13 @@ adb shell am broadcast -n $R --es op status            # one-line summary; full 
 adb shell am broadcast -n $R --es op takeover --ez on false
 adb shell am broadcast -n $R --es op earpiece-mute --ez on true
 adb shell am broadcast -n $R --es op sip-stack --es stack pjsua2
+# SOCKS5: select builtin and UDP before enabling the proxy (pjsua2 is not supported).
+adb shell am broadcast -n $R --es op sip-stack --es stack builtin
+adb shell am broadcast -n $R --es op provision --es transport udp --ez socks5_enabled true \
+  --es socks5_host 127.0.0.1 --ei socks5_port 10808
+# Optional auth extras: --es socks5_username ... --es socks5_password ...
+# Read secrets into shell variables instead of putting literal credentials in shell history.
+adb shell am broadcast -n $R --es op provision --ez socks5_enabled false
 adb shell am broadcast -n $R --es op loopback --ez on true   # echo incoming cellular calls (test mode)
 adb shell am broadcast -n $R --es op sip-debug --ez on true  # verbose pjsip logging
 adb shell am broadcast -n $R --es op provision --ez hold_sip false   # stay registered while not ready
@@ -154,6 +183,11 @@ Replies use `result=1` for acknowledgement, `2` for errors, and `3` for a five-s
 Acknowledgement does not guarantee completion; changes may wait until calls end. Check logcat or the
 in-app log before retrying. `result=0` with no data is not an acknowledgement: check the component name.
 Unknown arguments and wrong types are rejected; use the extra types shown in the examples.
+SOCKS5 provision extras are `socks5_enabled` (`--ez`), `socks5_port` (`--ei`, 1–65535), and
+`socks5_host`, `socks5_username`, `socks5_password` (`--es`). Omitted fields are preserved; empty
+username/password strings clear authentication (clear both together). ADB may save an incomplete or
+unsupported combination while provisioning in steps: SIP remains stopped and `settingsLine` reports
+`socks5_error` until corrected. These runtime validation errors are not command-completion results.
 
 Phone numbers are logged with only their last two digits; call audio is never logged or stored.
 

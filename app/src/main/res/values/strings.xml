@@ -234,4 +234,15 @@
     <string name="status_connecting">"connecting"</string>
     <string name="ui_retry_shizuku">Retry helper connection</string>
     <string name="status_userservice_timeout">Helper connection timed out (35 seconds). Check ShizukuServiceStarter logs for startup errors, then retry.</string>
+    <string name="ui_socks5_enable">"SOCKS5 proxy"</string>
+    <string name="ui_socks5_detail">"Built-in UDP only. SIP and RTP use the proxy; it must support UDP ASSOCIATE. No direct fallback."</string>
+    <string name="ui_socks5_host">"SOCKS5 host"</string>
+    <string name="ui_socks5_port">"SOCKS5 port"</string>
+    <string name="ui_socks5_username">"SOCKS5 username (optional)"</string>
+    <string name="ui_socks5_password">"SOCKS5 password (optional)"</string>
+    <string name="ui_socks5_reconnect">"Registration failures are retried. After the proxy or network recovers, reconnect SIP if needed; interrupted calls must be redialed. This does not keep an iOS SIP app running in the background. Changes wait for calls to end."</string>
+    <string name="status_socks5_unsupported">"SOCKS5 requires the built-in UDP stack; pjsua2 is not supported."</string>
+    <string name="status_socks5_host">"Enter a SOCKS5 host without a scheme, path or credentials."</string>
+    <string name="status_socks5_port">"SOCKS5 port must be between 1 and 65535."</string>
+    <string name="status_socks5_auth">"SOCKS5 authentication needs both username and password (1 to 255 UTF-8 bytes each), or both empty."</string>
 </resources>

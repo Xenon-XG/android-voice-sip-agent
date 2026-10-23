@@ -74,9 +74,6 @@ class SipUserAgent(
         if (started) return@post
         started = true
         stopping = false
-        transport = SipTransport(config.localPort, log) { msg, from -> post { onMessage(msg, from) } }
-        transport.start()
-        log.info("started on UDP $localPort -> ${account.server}:${account.port}")
         executor.scheduleWithFixedDelay({ checkMedia() }, 5, 5, TimeUnit.SECONDS)
         register()
     }
@@ -96,7 +93,7 @@ class SipUserAgent(
                     runCatching { leg.hangup(HangupCause.NORMAL) }.onFailure { log.warn("call hangup failed", it) }
                 }
                 regRefresh?.cancel(false)
-                if (!::serverAddr.isInitialized) { done.countDown(); return@post }
+                if (!::serverAddr.isInitialized || !::transport.isInitialized || !transport.healthy) { done.countDown(); return@post }
                 sendRegister(0, null) { done.countDown() }
             } catch (t: Throwable) {
                 log.warn("SIP unregister failed", t)
@@ -145,6 +142,10 @@ class SipUserAgent(
     /** Call when the network changes: refreshes our address and re-registers. */
     fun refreshRegistration() = post {
         if (!started || stopping) return@post
+        if (config.socks5Proxy != null) {
+            calls.values.toList().forEach { it.hangup(HangupCause.NETWORK_ERROR) }
+            if (::transport.isInitialized) transport.close()
+        }
         register()
     }
 
@@ -172,11 +173,34 @@ class SipUserAgent(
         if (stopping) return
         regRefresh?.cancel(false)
         regAuthAttempts = 0
-        setStatus(false, "registering")
+        if (config.socks5Proxy != null && (!::transport.isInitialized || !transport.healthy))
+            setStatus(false, "connecting SOCKS5")
         try { resolve() } catch (e: Exception) {
             registerFailed("cannot resolve server: ${e.message}")
             return
         }
+        try {
+            if (!::transport.isInitialized || !transport.healthy) {
+                if (::transport.isInitialized) transport.close()
+                lateinit var next: SipTransport
+                next = SipTransport(config.localPort, log, config.socks5Proxy, onFailure = {
+                    post {
+                        if (started && !stopping && transport === next) {
+                            calls.values.toList().forEach { it.hangup(HangupCause.NETWORK_ERROR) }
+                            registerFailed("transport closed")
+                        }
+                    }
+                }) { msg, from -> post { onMessage(msg, from) } }
+                transport = next
+                next.start()
+                log.info("started on UDP $localPort -> ${account.server}:${account.port}" +
+                    if (config.socks5Proxy != null) " via SOCKS5" else "")
+            }
+        } catch (e: Exception) {
+            registerFailed("transport setup failed: ${e.message}")
+            return
+        }
+        setStatus(false, "registering")
         sendRegister(config.registerExpiresSec, null)
     }
 
@@ -436,7 +460,8 @@ class SipUserAgent(
         r.headers.set("Accept", "application/sdp")
     }
 
-    internal fun newRtpSocket(): DatagramSocket = io.github.sparkcyf.voicesipagent.sip.media.RtpSession.bindSocket(null, config.rtpPortRange)
+    internal fun newRtpSocket(): DatagramSocket = config.socks5Proxy?.let { Socks5DatagramSocket(it) }
+        ?: io.github.sparkcyf.voicesipagent.sip.media.RtpSession.bindSocket(null, config.rtpPortRange)
 
     internal fun newBranch() = "z9hG4bK" + hex(10)
     internal fun newTag() = hex(6)

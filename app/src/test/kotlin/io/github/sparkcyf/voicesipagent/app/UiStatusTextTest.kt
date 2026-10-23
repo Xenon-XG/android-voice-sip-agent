@@ -6,6 +6,8 @@ import org.junit.Test
 class UiStatusTextTest {
     private val translations = mapOf(
         R.string.status_registering to "正在注册",
+        R.string.status_socks5_unsupported to "SOCKS5 仅支持内置 UDP 协议栈，不支持 pjsua2。",
+        R.string.status_socks5_port to "SOCKS5 端口必须为 1 至 65535。",
         R.string.status_registered_1_s_s to "已注册（%1\$s 秒）",
         R.string.status_registered_pjsua2_1_ss to "已注册（pjsua2，%1\$s 秒）",
         R.string.status_sip_1_s to "SIP：%1\$s",
@@ -29,6 +31,12 @@ class UiStatusTextTest {
         assertEquals("已注册（300 秒）", display("registered (300 s)"))
         assertEquals("已就绪 · 已注册（pjsua2，600 秒）", display("Ready · registered (pjsua2, 600s)"))
         assertEquals("SIP：暂停注册：无蜂窝通话", display("SIP: held unregistered: No cellular call"))
+    }
+
+    @Test fun proxyConfigurationErrorsHaveLocalizedActionableMessages() {
+        assertEquals("SOCKS5 仅支持内置 UDP 协议栈，不支持 pjsua2。",
+            display("SOCKS5 requires the built-in UDP stack; pjsua2 is not supported."))
+        assertEquals("SOCKS5 端口必须为 1 至 65535。", display("SOCKS5 port must be between 1 and 65535."))
     }
 
     @Test fun failureDetailsAreOpaqueEvenWhenTheyLookLikeStatusText() {

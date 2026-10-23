@@ -30,6 +30,8 @@ data class SipConfig(
     val ringTimeoutMs: Long = 60_000,
     /** Only accept SIP/RTP from the registrar's address (LAN deployment). */
     val acceptOnlyFromServer: Boolean = true,
+    /** Optional SOCKS5 transport for signaling and media; no direct fallback. */
+    val socks5Proxy: Socks5ProxyConfig? = null,
 )
 
 /** Minimal logging hook so the stack stays free of platform dependencies. */

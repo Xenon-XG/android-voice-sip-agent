@@ -44,6 +44,82 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class GatewayRuntimeLifecycleTest {
+    @Test fun invalidPersistedProxyNeverConstructsEitherStackEvenOnRestart() {
+        val base = GatewaySettings(server = "pbx.invalid", username = "test", password = "test",
+            socks5Enabled = true, holdSipWhenNotReady = true)
+        for (settings in listOf(base, base.copy(sipStack = SipStack.BUILTIN, sipTransport = "tls"),
+            base.copy(sipStack = SipStack.BUILTIN, socks5Port = 0),
+            base.copy(sipStack = SipStack.BUILTIN, socks5Host = "socks5://proxy-secret:proxy-secret@localhost"),
+            base.copy(sipStack = SipStack.BUILTIN, socks5Username = "user", socks5Password = ""))) {
+            Fixture(enabled = true, initial = settings).use { f ->
+                f.connect()
+                f.runtime.restartSip()
+                f.drain()
+                assertTrue(f.endpoints.constructed().isEmpty())
+                assertTrue(f.builtin.constructed().isEmpty())
+                assertFalse(f.runtime.health.value.sip.ready)
+                assertEquals(settings.socks5Error, f.runtime.health.value.sip.detail)
+                assertTrue(f.runtime.settingsLine().contains("socks5_error="))
+                assertFalse(f.runtime.settingsLine().contains("proxy-secret"))
+            }
+        }
+    }
+
+    @Test fun proxyChangesWaitForCallEndWireBothCredentialsAndCanBeDisabled(): Unit =
+        Fixture(enabled = true, holder = "gateway", healthy = true).use { f ->
+            f.connect()
+            `when`(f.runtime.cellular.hasCalls).thenReturn(true)
+            f.runtime.applySettings { it.copy(sipStack = SipStack.BUILTIN, socks5Enabled = true,
+                socks5Host = "proxy.invalid", socks5Port = 10809,
+                socks5Username = "proxy-secret-user", socks5Password = "proxy-secret-password") }
+            f.drain()
+            assertFalse(f.runtime.settings.socks5Enabled)
+            assertTrue(f.runtime.pendingSettingsFlow.value!!.socks5Enabled)
+            assertTrue(f.builtin.constructed().isEmpty())
+            assertFalse(f.runtime.settingsLine().contains("proxy-secret"))
+            assertTrue(f.runtime.settingsLine().contains("socks5_auth=set"))
+            `when`(f.runtime.cellular.hasCalls).thenReturn(false)
+            f.callsChanged(CallSnapshot())
+            f.awaitNativeShutdown()
+            val endpoint = f.builtin.constructed().single()
+            verify(endpoint).start()
+            val proxy = endpoint.config.socks5Proxy!!
+            assertEquals("proxy.invalid", proxy.host)
+            assertEquals(10809, proxy.port)
+            assertEquals("proxy-secret-user", proxy.username)
+            assertEquals("proxy-secret-password", proxy.password)
+            assertFalse(f.runtime.settingsLine().contains("proxy-secret"))
+
+            // A stack change through ADB/runtime must not bypass the UI's unsupported-combination guard.
+            val nativeCount = f.endpoints.constructed().size
+            f.runtime.applySettings { it.copy(sipStack = SipStack.PJSUA2) }
+            f.drain()
+            verify(endpoint).stop(anyLong())
+            assertEquals(nativeCount, f.endpoints.constructed().size)
+            assertEquals(f.runtime.settings.socks5Error, f.runtime.health.value.sip.detail)
+
+            f.runtime.applySettings { it.copy(sipStack = SipStack.BUILTIN, socks5Enabled = false) }
+            f.awaitNativeShutdown()
+            assertNull(f.builtin.constructed().last().config.socks5Proxy)
+            verify(f.builtin.constructed().last()).start()
+        }
+
+    @Test fun missingPhoneNumbersPermissionBlocksReadinessUntilGranted(): Unit =
+        Fixture(enabled = true, holder = "gateway", healthy = true, holdSip = true).use { f ->
+            `when`(f.context.checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS))
+                .thenReturn(PackageManager.PERMISSION_DENIED)
+            f.connect()
+            assertFalse(f.runtime.health.value.callAccessReady)
+            assertFalse(f.runtime.health.value.cellularReady)
+            assertTrue(f.runtime.health.value.readinessDetail.contains("permissions"))
+            assertTrue(f.endpoints.constructed().isEmpty())
+            `when`(f.context.checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS))
+                .thenReturn(PackageManager.PERMISSION_GRANTED)
+            f.checkHealth()
+            assertTrue(f.runtime.health.value.callAccessReady)
+            verify(f.endpoints.constructed().single()).start()
+        }
+
     @Test fun switchingToBuiltinWaitsForNativeSocketRelease(): Unit =
         Fixture(enabled = true, holder = "gateway", healthy = true).use { f ->
             f.connect()
@@ -459,7 +535,7 @@ class GatewayRuntimeLifecycleTest {
         }
 
     private class Fixture(enabled: Boolean = false, var holder: String? = "phone", rejectLaunch: Boolean = false,
-        holdSip: Boolean = false, healthy: Boolean = false) : AutoCloseable {
+        holdSip: Boolean = false, healthy: Boolean = false, initial: GatewaySettings? = null) : AutoCloseable {
         private val scopes = mutableListOf<AutoCloseable>()
         private val workerScopes = mutableListOf<AutoCloseable>()
         lateinit var connector: ShizukuConnector
@@ -519,7 +595,7 @@ class GatewayRuntimeLifecycleTest {
             for (key in HealthKeys.BOOLEAN_KEYS) `when`(helperHealth.getBoolean(key)).thenReturn(healthy)
             `when`(helper.setupCallAccess(anyString(), anyBoolean(), anyInt())).thenReturn(helperHealth)
             scopes += mockConstruction(SettingsStore::class.java) { store, _ ->
-                `when`(store.load()).thenReturn(GatewaySettings(takeover = enabled, callAccess = CallAccess.DIALER,
+                `when`(store.load()).thenReturn(initial ?: GatewaySettings(takeover = enabled, callAccess = CallAccess.DIALER,
                     server = "pbx.invalid", username = "test", password = "test", holdSipWhenNotReady = holdSip))
             }
             scopes += mockConstruction(DialerHandoffStore::class.java) { store, _ ->

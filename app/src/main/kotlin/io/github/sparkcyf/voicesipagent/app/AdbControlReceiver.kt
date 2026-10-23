@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * [RESULT_OK] = 1, [RESULT_ERROR] = 2 (bad input or submission/reporting failure),
  * [RESULT_TIMEOUT] = 3 (queued or running; see logcat). An acknowledgement does not guarantee completion.
  * result=0 with no data means the broadcast never reached this receiver (e.g. a misspelled component).
- * Replies never contain the SIP password.
+ * Replies never contain SIP passwords or SOCKS5 credentials.
  */
 class AdbControlReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -69,7 +69,8 @@ class AdbControlReceiver : BroadcastReceiver() {
             "loopback", "takeover", "earpiece-mute", "sip-debug" -> setOf("on")
             "sip-stack" -> setOf("stack")
             "provision" -> setOf("server", "port", "transport", "srtp", "user", "password", "domain",
-                "target", "prefixes", "audio_method", "call_access", "hold_sip")
+                "target", "prefixes", "audio_method", "call_access", "hold_sip",
+                "socks5_enabled", "socks5_host", "socks5_port", "socks5_username", "socks5_password")
             else -> invalid("unknown op; see README adb control")
         }
         if (!intent.extras?.keySet().orEmpty().all { it == "op" || it in allowed })
@@ -120,6 +121,12 @@ class AdbControlReceiver : BroadcastReceiver() {
                 val audioMethod = intent.argument<Int>("audio_method")
                 val callAccess = intent.argument<Int>("call_access")
                 val holdSip = intent.argument<Boolean>("hold_sip")
+                val socks5Enabled = intent.argument<Boolean>("socks5_enabled")
+                val socks5Host = intent.argument<String>("socks5_host")
+                val socks5Port = intent.argument<Int>("socks5_port")
+                val socks5Username = intent.argument<String>("socks5_username")
+                val socks5Password = intent.argument<String>("socks5_password")
+                if (socks5Port != null && socks5Port !in 1..65535) invalid("socks5_port must be 1..65535")
                 if (port != null && port !in 1..65535) invalid("port must be 1..65535")
                 if (audioMethod != null && audioMethod !in 0..2) invalid("audio_method must be 0|1|2")
                 if (callAccess != null && callAccess !in 0..2) invalid("call_access must be 0|1|2")
@@ -133,6 +140,11 @@ class AdbControlReceiver : BroadcastReceiver() {
                             allowedPrefixes = prefixes ?: cur.allowedPrefixes,
                             audioMethod = audioMethod ?: cur.audioMethod, callAccess = callAccess ?: cur.callAccess,
                             holdSipWhenNotReady = holdSip ?: cur.holdSipWhenNotReady,
+                            socks5Enabled = socks5Enabled ?: cur.socks5Enabled,
+                            socks5Host = socks5Host ?: cur.socks5Host,
+                            socks5Port = socks5Port ?: cur.socks5Port,
+                            socks5Username = socks5Username ?: cur.socks5Username,
+                            socks5Password = socks5Password ?: cur.socks5Password,
                         )
                     }
                     rt::settingsLine

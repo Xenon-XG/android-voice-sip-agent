@@ -1,0 +1,141 @@
+name: SOCKS5 Android preview
+
+on:
+  push:
+    branches: [feature/socks5-proxy]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: socks5-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    if: github.repository == 'Xenon-XG/android-voice-sip-agent' && github.ref == 'refs/heads/feature/socks5-proxy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate translated resources
+        run: |
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+          locales = []
+          for locale in ('values', 'values-zh'):
+              nodes = ET.parse(Path('app/src/main/res') / locale / 'strings.xml').getroot()
+              values = {node.attrib['name']: node.text or '' for node in nodes}
+              assert len(values) == len(nodes), 'Duplicate resource keys'
+              locales.append(values)
+          english, chinese = locales
+          assert english.keys() == chinese.keys(), 'Locale keys differ'
+          for key in english:
+              assert re.findall(r'%\d+\$[sd]', english[key]) == re.findall(r'%\d+\$[sd]', chinese[key]), key
+          refs = set()
+          for path in Path('app/src').rglob('*.kt'):
+              refs.update(re.findall(r'R\.string\.(\w+)', path.read_text()))
+          assert refs <= english.keys(), refs - english.keys()
+          print(f'Validated {len(english)} resource keys, placeholders and references')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swig build-essential autoconf automake libtool pkg-config
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;28.2.13676358'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Run core tests
+        run: ./gradlew :voice-api:test :sip:test :gateway:test --no-parallel --max-workers=2 --stacktrace
+      - uses: actions/cache/restore@v4
+        id: native-cache
+        with:
+          path: sip-pjsua2/src/generated
+          key: native-ubuntu24-arm64-ndk28.2-${{ hashFiles('sip-pjsua2/native/**') }}
+      - name: Build native SIP libraries
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        env:
+          ABIS: arm64-v8a
+          APP_PLATFORM: android-30
+        run: bash sip-pjsua2/native/build-pjsua2.sh
+      - uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: sip-pjsua2/src/generated
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
+      - name: Assemble test APK
+        run: ./gradlew :app:assembleDebug --no-parallel --max-workers=2 --stacktrace
+      - name: Run Android regression tests
+        run: ./gradlew :privileged:testDebugUnitTest :telephony:testDebugUnitTest :sip-pjsua2:testDebugUnitTest :app:testDebugUnitTest --no-parallel --max-workers=2 --stacktrace
+      - name: Verify and package test APK
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p apk
+          cp app/build/outputs/apk/debug/app-debug.apk apk/android-voice-sip-agent-zh-socks5-preview.apk
+          printf '%s\n' "$GITHUB_SHA" > apk/COMMIT.txt
+          (cd apk && sha256sum *.apk > APK-SHA256SUMS.txt)
+          {
+            echo '## Test build only'
+            echo 'Chinese UI preserved. Experimental preview; device call testing is required.'
+            echo 'SOCKS5 applies to the built-in UDP SIP stack and RTP. PJSIP with proxy enabled is explicitly blocked. No direct fallback. A reachable proxy and appropriate PBX media routing are required.'
+            echo 'APK signing certificates must be compared before updating an existing installation.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: socks5-preview-apk
+          path: apk/*
+          retention-days: 14
+          if-no-files-found: error
+      - name: Preserve matching native bindings
+        uses: actions/upload-artifact@v4
+        with:
+          name: socks5-native-bindings
+          path: sip-pjsua2/src/generated/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Preserve test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: socks5-preview-results
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  publish-preview:
+    needs: android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: socks5-preview-apk
+          path: apk
+      - name: Publish experimental preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v0.3.0-socks5.${{ github.run_number }}
+        run: |
+          cat > notes.txt <<'NOTES'
+          Experimental SOCKS5 preview, not a production release.
+          Supports configured SOCKS5 UDP for built-in SIP and RTP; no direct fallback.
+          Proxy software is required separately. This app does not bundle Xray or create a VPN.
+          PJSIP proxy mode is intentionally blocked. DNS/NAT/media routing limitations are documented in README.
+          Debug-signed APK: compare signing certificates before installing; do not uninstall a working app without preserving its configuration.
+          NOTES
+          echo "Source commit: $GITHUB_SHA" >> notes.txt
+          echo "Build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> notes.txt
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "SOCKS5 experimental preview $TAG" --notes-file notes.txt --prerelease apk/*

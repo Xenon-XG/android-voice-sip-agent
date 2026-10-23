@@ -353,6 +353,7 @@ class PrivilegedService(context: Context) : IPrivilegedService.Stub() {
         private val PHONE_RUNTIME_PERMISSIONS = listOf(
             "android.permission.CALL_PHONE",
             "android.permission.READ_PHONE_STATE",
+            "android.permission.READ_PHONE_NUMBERS",
         )
     }
 }

@@ -304,6 +304,7 @@ private fun SettingsSection(rt: GatewayRuntime, editor: SipSettingsDraft) = with
     val unsaved = hasUnsavedChanges(cur, pending)
     val sipPending = pending?.hasSameSipSettings(cur) == false
     val portValidationError = portError?.let(context::displayStatus)
+    val socks5ValidationError = socks5Error?.let(context::displayStatus)
     Section(context.getString(R.string.ui_settings)) {
         Choice(context.getString(R.string.ui_sip_stack), SipStack.entries, stack, { if (it == SipStack.BUILTIN) context.getString(R.string.ui_built_in_udp) else it.id }) {
             stack = it
@@ -321,6 +322,24 @@ private fun SettingsSection(rt: GatewayRuntime, editor: SipSettingsDraft) = with
         Choice(context.getString(R.string.ui_srtp_tls_only), SrtpPolicy.entries, srtp, { context.displayStatus(it.id) }, enabled = { !builtin && transport == SipTransport.TLS }) {
             srtp = it
         }
+        Toggle(context.getString(R.string.ui_socks5_enable), socks5Enabled, { socks5Enabled = it }) {
+            context.getString(R.string.ui_socks5_detail)
+        }
+        if (socks5Enabled) {
+            Field(context.getString(R.string.ui_socks5_host), socks5Host) { socks5Host = it }
+            Field(context.getString(R.string.ui_socks5_port), socks5Port, KeyboardType.Number) { socks5Port = it }
+            Field(context.getString(R.string.ui_socks5_username), socks5Username) { socks5Username = it }
+            OutlinedTextField(
+                value = socks5Password, onValueChange = { socks5Password = it },
+                label = { Text(context.getString(R.string.ui_socks5_password)) },
+                visualTransformation = PasswordVisualTransformation(), singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (socks5ValidationError != null) Text(socks5ValidationError,
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(context.getString(R.string.ui_socks5_reconnect), style = MaterialTheme.typography.bodySmall)
+        }
         Field(context.getString(R.string.ui_pbx_host), server) { server = it }
         Field(context.getString(R.string.ui_pbx_port), port, KeyboardType.Number, error = portValidationError) { port = it }
         Field(context.getString(R.string.ui_sip_domain_empty_pbx_host), domain) { domain = it }
@@ -334,7 +353,7 @@ private fun SettingsSection(rt: GatewayRuntime, editor: SipSettingsDraft) = with
         if (unsaved) Text(context.getString(R.string.ui_unsaved_changes), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary)
         if (sipPending) Text(context.getString(R.string.ui_changes_pending_until_calls_end), style = MaterialTheme.typography.bodySmall)
-        Button(onClick = { rt.applySettings(settingsUpdate()) }, enabled = portValidationError == null) { Text(context.getString(R.string.ui_save_apply)) }
+        Button(onClick = { rt.applySettings(settingsUpdate()) }, enabled = portValidationError == null && socks5ValidationError == null) { Text(context.getString(R.string.ui_save_apply)) }
         if (health.calls.count > 0 || health.session != null) {
             if (!sipPending) Text(context.getString(R.string.ui_saved_changes_apply_after_the_current_call_ends), style = MaterialTheme.typography.bodySmall)
         } else if (!cur.takeover) {

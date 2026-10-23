@@ -7,6 +7,15 @@ class CallAccessRequirementsTest {
     private val dialer = CallAccessRequirements(CallAccess.DIALER, 30, true, true,
         true, false, false, false, true)
 
+    @Test fun helperGrantsPhoneNumbersAlongsideCallingAndPhoneStatePermissions() {
+        val field = io.github.sparkcyf.voicesipagent.privileged.shell.PrivilegedService::class.java
+            .getDeclaredField("PHONE_RUNTIME_PERMISSIONS").apply { isAccessible = true }
+        val permissions = field.get(null) as List<*>
+        assertTrue(permissions.contains("android.permission.CALL_PHONE"))
+        assertTrue(permissions.contains("android.permission.READ_PHONE_STATE"))
+        assertTrue(permissions.contains("android.permission.READ_PHONE_NUMBERS"))
+    }
+
     @Test fun dialerIsReadyWithoutCompanionPrivilegesOrAnIdleBinding() {
         assertTrue(dialer.ready)
         assertNull(dialer.problem)

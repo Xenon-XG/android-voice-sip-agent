@@ -234,4 +234,15 @@
     <string name="status_connecting">"正在连接"</string>
     <string name="ui_retry_shizuku">重试辅助服务连接</string>
     <string name="status_userservice_timeout">辅助服务连接超时（35 秒）。请检查 ShizukuServiceStarter 启动错误日志，然后重试。</string>
+    <string name="ui_socks5_enable">"SOCKS5 代理"</string>
+    <string name="ui_socks5_detail">"仅支持内置 UDP 协议栈。SIP 和 RTP 均经过代理；代理必须支持 UDP ASSOCIATE。不回退直连。"</string>
+    <string name="ui_socks5_host">"SOCKS5 主机地址"</string>
+    <string name="ui_socks5_port">"SOCKS5 端口"</string>
+    <string name="ui_socks5_username">"SOCKS5 用户名（可选）"</string>
+    <string name="ui_socks5_password">"SOCKS5 密码（可选）"</string>
+    <string name="ui_socks5_reconnect">"注册失败会重试。代理或网络恢复后，必要时请点击“重新连接 SIP”；中断的通话需重新拨打。此功能不能保证 iOS SIP 应用在后台运行。设置更改会等待通话结束。"</string>
+    <string name="status_socks5_unsupported">"SOCKS5 仅支持内置 UDP 协议栈，不支持 pjsua2。"</string>
+    <string name="status_socks5_host">"请输入 SOCKS5 主机地址，不要包含协议前缀、路径或凭据。"</string>
+    <string name="status_socks5_port">"SOCKS5 端口必须为 1 至 65535。"</string>
+    <string name="status_socks5_auth">"SOCKS5 用户名和密码需同时填写（各 1 至 255 个 UTF-8 字节），或同时留空。"</string>
 </resources>

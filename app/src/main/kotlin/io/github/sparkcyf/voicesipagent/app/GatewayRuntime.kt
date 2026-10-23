@@ -445,7 +445,7 @@ class GatewayRuntime private constructor(context: Context) {
             componentEnabled(GatewayDialerActivity::class.java, false) && componentEnabled(GatewayDialerService::class.java, true),
             componentEnabled(GatewayInCallService::class.java, true),
             p?.get(HealthKeys.MANAGE_ONGOING_CALLS) == true, p?.get(HealthKeys.COMPANION_OVERRIDE) == true,
-            listOf(Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE).all {
+            listOf(Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_PHONE_NUMBERS).all {
                 app.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
             })
         val access = requirements.ready
@@ -507,7 +507,7 @@ class GatewayRuntime private constructor(context: Context) {
      */
     private fun sipHoldReason(problem: String?): String? {
         val s = settings
-        val d = sipGate.evaluate(active = gatewayEnabled && s.takeover && s.sipConfigured && s.holdSipWhenNotReady,
+        val d = sipGate.evaluate(active = gatewayEnabled && s.takeover && s.sipConfigured && s.socks5Error == null && s.holdSipWhenNotReady,
             ready = problem == null)
         scheduleSipHoldCheck(d.recheckAtMs)
         return if (d.hold) problem ?: "cellular side not ready" else null
@@ -674,6 +674,12 @@ class GatewayRuntime private constructor(context: Context) {
             _health.update { it.copy(sip = EndpointStatus(false, "takeover off")) }
             return
         }
+        // Validate persisted/ADB settings before hold gating or constructing either SIP stack.
+        s.socks5Error?.let { error ->
+            AppLog.w(error)
+            _health.update { it.copy(sip = EndpointStatus(false, error)) }
+            return
+        }
         if (!s.sipConfigured) {
             _health.update { it.copy(sip = EndpointStatus(false, "not configured")) }
             return
@@ -711,6 +717,7 @@ class GatewayRuntime private constructor(context: Context) {
                             displayName = "gateway",
                         ),
                         localPort = s.localSipPort,
+                        socks5Proxy = s.socks5ProxyConfig(),
                     ),
                     sipLog,
                 ).also { ua ->
@@ -767,13 +774,13 @@ class GatewayRuntime private constructor(context: Context) {
                     // Keep the SIP socket only if pjsua2 is about to take it over again.
                     val n = settings
                     s.stop(
-                        releaseTransport = releaseLibrary || !(n.takeover && n.sipStack == SipStack.PJSUA2 &&
+                        releaseTransport = releaseLibrary || !(n.takeover && !n.socks5Enabled && n.sipStack == SipStack.PJSUA2 &&
                             n.localSipPort == s.config.localPort && SipTransport.of(n.sipTransport) == s.config.transport),
                     )
                 }
             }
         } finally {
-            if (releaseLibrary || !_health.value.takeover || settings.sipStack != SipStack.PJSUA2)
+            if (releaseLibrary || !_health.value.takeover || settings.socks5Enabled || settings.sipStack != SipStack.PJSUA2)
                 trackSipSocketRelease(PjsipEndpoint.stopLibrary())
         }
     }
@@ -1024,6 +1031,9 @@ class GatewayRuntime private constructor(context: Context) {
         return "stack=${s.sipStack.id} server=${s.server}:${s.port}/${s.sipTransport} srtp=${s.srtp}" +
             " domain=${s.domain.ifEmpty { "(server)" }} user=${s.username}" +
             " password=${if (s.password.isEmpty()) "unset" else "set"} target=${s.inboundTarget.ifEmpty { "(user)" }}" +
+            " socks5=${onOff(s.socks5Enabled)} socks5_host=${if (validSocks5Host(s.socks5Host)) s.socks5Host.trim() else "(invalid)"} socks5_port=${s.socks5Port}" +
+            " socks5_auth=${if (s.socks5Username.isEmpty() && s.socks5Password.isEmpty()) "unset" else "set"}" +
+            (s.socks5Error?.let { " socks5_error=($it)" } ?: "") +
             " prefixes=${s.allowedPrefixes.ifEmpty { "(any)" }}" +
             " audio_method=${s.audioMethod}:${audioMethodName(s.audioMethod)} call_access=${s.callAccess}" +
             " earpiece_mute=${onOff(s.muteEarpiece)} hold_sip=${onOff(s.holdSipWhenNotReady)} sip_debug=${onOff(s.sipDebugLog)}" +

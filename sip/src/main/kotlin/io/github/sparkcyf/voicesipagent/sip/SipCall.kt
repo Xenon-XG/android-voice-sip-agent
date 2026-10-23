@@ -386,6 +386,11 @@ internal class SipCall(
         val r = rtp ?: return
         val p = rtpParams ?: return
         if (state != LegState.CONNECTED || !p.sendEnabled) return
+        if (r.socket.isClosed) {
+            log.warn("call $id: media transport closed")
+            doHangup(HangupCause.NETWORK_ERROR)
+            return
+        }
         if (now - r.lastReceiveAtMs > config.rtpTimeoutMs) {
             log.warn("call $id: no RTP for ${config.rtpTimeoutMs} ms, hanging up")
             doHangup(HangupCause.NETWORK_ERROR)
