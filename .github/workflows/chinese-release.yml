@@ -24,7 +24,7 @@ env:
 jobs:
   source:
     if: github.repository == 'Xenon-XG/android-voice-sip-agent' && github.ref == 'refs/heads/codex/chinese-ui'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +76,7 @@ jobs:
 
   publish-source:
     needs: [source, android]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -110,7 +110,7 @@ jobs:
 
   android:
     needs: source
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -124,13 +124,30 @@ jobs:
           sudo apt-get install -y swig build-essential autoconf automake libtool pkg-config
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;28.2.13676358'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Run core tests before Android compilation
+        run: ./gradlew :voice-api:test :sip:test :gateway:test --no-parallel --max-workers=2 --stacktrace
+      - uses: actions/cache/restore@v4
+        id: native-cache
+        with:
+          path: sip-pjsua2/src/generated
+          key: native-ubuntu24-arm64-ndk28.2-${{ hashFiles('sip-pjsua2/native/**') }}
       - name: Build native SIP libraries without changing native configuration
+        if: steps.native-cache.outputs.cache-hit != 'true'
         env:
           ABIS: arm64-v8a
           APP_PLATFORM: android-30
         run: bash sip-pjsua2/native/build-pjsua2.sh
-      - name: Run regression tests and assemble APK
-        run: ./gradlew :voice-api:test :sip:test :gateway:test :privileged:testDebugUnitTest :telephony:testDebugUnitTest :sip-pjsua2:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: sip-pjsua2/src/generated
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
+      - name: Compile APK before running Android tests
+        run: ./gradlew :app:assembleDebug --no-parallel --max-workers=2 --stacktrace
+      - name: Run Android regression tests
+        run: ./gradlew :privileged:testDebugUnitTest :telephony:testDebugUnitTest :sip-pjsua2:testDebugUnitTest :app:testDebugUnitTest --no-parallel --max-workers=2 --stacktrace
       - name: Verify APK signature and package
         run: |
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
@@ -154,7 +171,7 @@ jobs:
 
   attach-apk:
     needs: [publish-source, android]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
