@@ -76,5 +76,13 @@ internal class SipTransport(
     fun close() {
         closed = true
         socket.close()
+        // On some JDKs the descriptor is released only after blocked receive exits.
+        if (Thread.currentThread() !== thread) {
+            try { thread.join(1000) } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw java.io.IOException("Interrupted while stopping SIP receiver", e)
+            }
+            if (thread.isAlive) throw java.io.IOException("SIP receiver did not stop after socket close")
+        }
     }
 }
