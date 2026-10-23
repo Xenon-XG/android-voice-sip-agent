@@ -1,0 +1,171 @@
+name: Chinese preview release
+
+on:
+  push:
+    branches: [codex/chinese-ui]
+    paths:
+      - '.github/workflows/chinese-release.yml'
+      - 'app/**'
+      - 'docs/LOCALIZATION.md'
+      - 'README.zh.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chinese-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: v0.3.0-zh.${{ github.run_number }}
+  BASE_COMMIT: a134b8e5e0424024870b53252eb0d1b9f4d3195e
+
+jobs:
+  source:
+    if: github.repository == 'Xenon-XG/android-voice-sip-agent' && github.ref == 'refs/heads/codex/chinese-ui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate resources and localization boundaries
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, xml.etree.ElementTree as ET
+          root = Path('app/src/main')
+          locales = []
+          for locale in ('values', 'values-zh'):
+              nodes = ET.parse(root / 'res' / locale / 'strings.xml').getroot()
+              values = {node.attrib['name']: node.text or '' for node in nodes}
+              assert len(values) == len(nodes), 'Duplicate resource keys'
+              locales.append(values)
+          english, chinese = locales
+          assert english.keys() == chinese.keys(), 'Locale keys differ'
+          for key in english:
+              assert re.findall(r'%\d+\$[sd]', english[key]) == re.findall(r'%\d+\$[sd]', chinese[key]), key
+          refs = set()
+          for path in Path('app/src').rglob('*.kt'):
+              refs.update(re.findall(r'R\.string\.(\w+)', path.read_text()))
+          assert refs <= english.keys(), refs - english.keys()
+          protected = ['voice-api', 'sip', 'sip-pjsua2', 'gateway', 'telephony', 'privileged',
+                       'app/src/main/AndroidManifest.xml', 'app/build.gradle.kts',
+                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/GatewayRuntime.kt',
+                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/SettingsStore.kt',
+                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/SipSettingsDraft.kt',
+                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/DialerHandoff.kt']
+          import os
+          assert not subprocess.check_output(['git', 'diff', os.environ['BASE_COMMIT'], 'HEAD', '--', *protected]), 'Core code changed'
+          print(f'Validated {len(english)} resource keys, placeholders, references and unchanged core modules')
+          PY
+          git diff --check "$BASE_COMMIT" HEAD
+      - name: Package source and patch
+        run: |
+          mkdir dist
+          git archive --format=zip --prefix=android-voice-sip-agent/ -o dist/android-voice-sip-agent-zh-source.zip HEAD
+          git diff --binary "$BASE_COMMIT" HEAD -- README.zh.md app docs/LOCALIZATION.md > dist/chinese-ui.patch
+          (cd dist && sha256sum android-voice-sip-agent-zh-source.zip chinese-ui.patch > SOURCE-SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chinese-source
+          path: dist/*
+          if-no-files-found: error
+
+  publish-source:
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: chinese-source
+          path: dist
+      - name: Publish Chinese source prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > release-notes.md <<'NOTES'
+          ## 简体中文汉化预览版
+
+          中文系统自动显示中文，其他系统语言保留英文。覆盖主界面、设置、拨号恢复页、通知及常用运行状态。
+          仅调整显示层；SIP/RTP、音频、通话路由、Shizuku、配置和凭据存储逻辑保持原样。诊断日志及底层错误详情保留原文。
+
+          附件包含完整源码、汉化补丁和 SHA-256 校验值。资源键、占位符、代码引用及核心模块无改动检查已通过。
+
+          **这是预发布版本，未完成真机通话验证。** Android 测试和 APK 构建由同一工作流继续执行；只有全部构建测试成功，才会附加 `arm64-v8a` 调试签名 APK。若未看到 APK 附件，请查看工作流结果。调试包用于测试，不是正式签名发行包，不能保证覆盖安装已有版本。
+          NOTES
+          printf '\n提交：`%s`\n\n构建记录：https://github.com/%s/actions/runs/%s\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-notes.md
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            test "$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')" = "$GITHUB_SHA"
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "v0.3.0 汉化预览版 ${RELEASE_TAG##*.}" --notes-file release-notes.md --prerelease
+          fi
+          gh release upload "$RELEASE_TAG" dist/* --clobber
+
+  android:
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swig build-essential autoconf automake libtool pkg-config
+          sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'ndk;28.2.13676358'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build native SIP libraries without changing native configuration
+        env:
+          ABIS: arm64-v8a
+          APP_PLATFORM: android-30
+        run: bash sip-pjsua2/native/build-pjsua2.sh
+      - name: Run regression tests and assemble APK
+        run: ./gradlew :voice-api:test :sip:test :gateway:test :privileged:testDebugUnitTest :telephony:testDebugUnitTest :sip-pjsua2:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - name: Verify APK signature and package
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p apk
+          cp app/build/outputs/apk/debug/app-debug.apk apk/android-voice-sip-agent-zh-arm64-debug.apk
+          (cd apk && sha256sum *.apk > APK-SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chinese-apk
+          path: apk/*
+          if-no-files-found: error
+      - name: Preserve test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          if-no-files-found: ignore
+
+  attach-apk:
+    needs: [publish-source, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: chinese-apk
+          path: apk
+      - name: Upload verified test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$RELEASE_TAG" apk/* --clobber
