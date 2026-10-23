@@ -135,10 +135,7 @@ jobs:
           mkdir -p apk
           cp app/build/outputs/apk/debug/app-debug.apk apk/android-voice-sip-agent-zh-display-only-arm64-debug.apk
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose apk/android-voice-sip-agent-original-control-arm64-debug.apk
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs apk/android-voice-sip-agent-original-control-arm64-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' > "$RUNNER_TEMP/control-cert"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs apk/android-voice-sip-agent-zh-display-only-arm64-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' > "$RUNNER_TEMP/chinese-cert"
-          test -s "$RUNNER_TEMP/control-cert"
-          cmp "$RUNNER_TEMP/control-cert" "$RUNNER_TEMP/chinese-cert"
+          java --class-path "$ANDROID_HOME/build-tools/37.0.0/lib/*" tools/VerifyApkPair.java apk/android-voice-sip-agent-original-control-arm64-debug.apk apk/android-voice-sip-agent-zh-display-only-arm64-debug.apk
           (cd apk && sha256sum *.apk > APK-SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
