@@ -594,6 +594,7 @@ class GatewayRuntimeLifecycleTest {
             }
             for (key in HealthKeys.BOOLEAN_KEYS) `when`(helperHealth.getBoolean(key)).thenReturn(healthy)
             `when`(helper.setupCallAccess(anyString(), anyBoolean(), anyInt())).thenReturn(helperHealth)
+            `when`(helper.health(anyString())).thenReturn(helperHealth)
             scopes += mockConstruction(SettingsStore::class.java) { store, _ ->
                 `when`(store.load()).thenReturn(initial ?: GatewaySettings(takeover = enabled, callAccess = CallAccess.DIALER,
                     server = "pbx.invalid", username = "test", password = "test", holdSipWhenNotReady = holdSip))
