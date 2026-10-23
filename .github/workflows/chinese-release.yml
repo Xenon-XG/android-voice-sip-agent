@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: v0.3.0-zh.${{ github.run_number }}
+  RELEASE_TAG: v0.3.0-zh-literal.${{ github.run_number }}
   BASE_COMMIT: a134b8e5e0424024870b53252eb0d1b9f4d3195e
 
 jobs:
@@ -30,44 +30,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate resources and localization boundaries
-        shell: bash
+      - name: Verify reviewed literals and exact upstream logic
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re, subprocess, xml.etree.ElementTree as ET
-          root = Path('app/src/main')
-          locales = []
-          for locale in ('values', 'values-zh'):
-              nodes = ET.parse(root / 'res' / locale / 'strings.xml').getroot()
-              values = {node.attrib['name']: node.text or '' for node in nodes}
-              assert len(values) == len(nodes), 'Duplicate resource keys'
-              locales.append(values)
-          english, chinese = locales
-          assert english.keys() == chinese.keys(), 'Locale keys differ'
-          for key in english:
-              assert re.findall(r'%\d+\$[sd]', english[key]) == re.findall(r'%\d+\$[sd]', chinese[key]), key
-          refs = set()
-          for path in Path('app/src').rglob('*.kt'):
-              refs.update(re.findall(r'R\.string\.(\w+)', path.read_text()))
-          assert refs <= english.keys(), refs - english.keys()
-          protected = ['voice-api', 'sip', 'sip-pjsua2', 'gateway', 'telephony', 'privileged',
-                       'app/src/main/AndroidManifest.xml', 'app/build.gradle.kts',
-                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/GatewayRuntime.kt',
-                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/SettingsStore.kt',
-                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/SipSettingsDraft.kt',
-                       'app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/DialerHandoff.kt']
-          import os
-          assert not subprocess.check_output(['git', 'diff', os.environ['BASE_COMMIT'], 'HEAD', '--', *protected]), 'Core code changed'
-          print(f'Validated {len(english)} resource keys, placeholders, references and unchanged core modules')
-          PY
+          python3 tools/verify_display_only_localization.py --self-test
           git diff --check "$BASE_COMMIT" HEAD
       - name: Package source and patch
         run: |
           mkdir dist
           git archive --format=zip --prefix=android-voice-sip-agent/ -o dist/android-voice-sip-agent-zh-source.zip HEAD
-          git diff --binary "$BASE_COMMIT" HEAD -- README.zh.md app docs/LOCALIZATION.md > dist/chinese-ui.patch
-          (cd dist && sha256sum android-voice-sip-agent-zh-source.zip chinese-ui.patch > SOURCE-SHA256SUMS.txt)
+          git diff --binary "$BASE_COMMIT" HEAD -- app > dist/chinese-ui-display-only.patch
+          (cd dist && sha256sum android-voice-sip-agent-zh-source.zip chinese-ui-display-only.patch > SOURCE-SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
           name: chinese-source
@@ -91,20 +63,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           cat > release-notes.md <<'NOTES'
-          ## 简体中文汉化预览版
+          ## 重新审查的显示文字汉化预览版
 
-          中文系统自动显示中文，其他系统语言保留英文。覆盖主界面、设置、拨号恢复页、通知及常用运行状态。
+          固定中文显示标签。以原始提交为基线，仅替换 4 个文件中的 139 处显示文字；不再使用上一版的运行时状态翻译器。共用状态、错误、枚举标识和诊断信息保留原文，部分技术值仍为英文。
           仅调整显示层；SIP/RTP、音频、通话路由、Shizuku、配置和凭据存储逻辑保持原样。诊断日志及底层错误详情保留原文。
 
-          附件包含完整源码、汉化补丁和 SHA-256 校验值。资源键、占位符、代码引用及核心模块无改动检查已通过。
+          附件包含完整源码、汉化补丁和 SHA-256 校验值。逐字回退验证和插值表达式检查已通过；134 个受保护文件与原版字节一致。源码内含逐页业务链路审查及检查器。
 
-          **这是预发布版本，未完成真机通话验证。** Android 单元测试和 APK 构建已通过；同一工作流随后附加 `arm64-v8a` 调试签名 APK。若未看到 APK 附件，请查看工作流结果。调试包用于测试，不是正式签名发行包，不能保证覆盖安装已有版本。
+          **这是预发布版本，未完成真机通话验证。** Android 单元测试和 APK 构建已通过；同一工作流随后附加 `arm64-v8a` 调试签名 APK（汉化版及相同环境构建的原版对照版）。若未看到 APK 附件，请查看工作流结果。调试包用于测试，不是正式签名发行包，不能保证覆盖安装已有版本。
           NOTES
           printf '\n提交：`%s`\n\n构建记录：https://github.com/%s/actions/runs/%s\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-notes.md
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             test "$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')" = "$GITHUB_SHA"
           else
-            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "v0.3.0 汉化预览版 ${RELEASE_TAG##*.}" --notes-file release-notes.md --prerelease
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "v0.3.0 重做汉化（仅显示文字）${RELEASE_TAG##*.}" --notes-file release-notes.md --prerelease
           fi
           gh release upload "$RELEASE_TAG" dist/* --clobber
 
@@ -114,6 +86,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -144,6 +118,13 @@ jobs:
         with:
           path: sip-pjsua2/src/generated
           key: ${{ steps.native-cache.outputs.cache-primary-key }}
+      - name: Build the unmodified upstream control APK
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/upstream-control" "$BASE_COMMIT"
+          cp -a sip-pjsua2/src/generated "$RUNNER_TEMP/upstream-control/sip-pjsua2/src/generated"
+          (cd "$RUNNER_TEMP/upstream-control" && ./gradlew :app:assembleDebug --no-parallel --max-workers=2 --stacktrace)
+          mkdir -p apk
+          cp "$RUNNER_TEMP/upstream-control/app/build/outputs/apk/debug/app-debug.apk" apk/android-voice-sip-agent-original-control-arm64-debug.apk
       - name: Compile APK before running Android tests
         run: ./gradlew :app:assembleDebug --no-parallel --max-workers=2 --stacktrace
       - name: Run Android regression tests
@@ -152,7 +133,12 @@ jobs:
         run: |
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
           mkdir -p apk
-          cp app/build/outputs/apk/debug/app-debug.apk apk/android-voice-sip-agent-zh-arm64-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk apk/android-voice-sip-agent-zh-display-only-arm64-debug.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose apk/android-voice-sip-agent-original-control-arm64-debug.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs apk/android-voice-sip-agent-original-control-arm64-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' > "$RUNNER_TEMP/control-cert"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs apk/android-voice-sip-agent-zh-display-only-arm64-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' > "$RUNNER_TEMP/chinese-cert"
+          test -s "$RUNNER_TEMP/control-cert"
+          cmp "$RUNNER_TEMP/control-cert" "$RUNNER_TEMP/chinese-cert"
           (cd apk && sha256sum *.apk > APK-SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:

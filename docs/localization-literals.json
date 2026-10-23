@@ -1,0 +1,709 @@
+{
+  "base_commit": "a134b8e5e0424024870b53252eb0d1b9f4d3195e",
+  "policy": "Only individually reviewed display string literals; original code and shared values remain byte-identical.",
+  "files": {
+    "app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/MainActivity.kt": [
+      {
+        "literal_index": 1,
+        "original": "\"Takeover\"",
+        "translated": "\"通话接管\""
+      },
+      {
+        "literal_index": 2,
+        "original": "\"Take over calls\"",
+        "translated": "\"启用网关通话接管\""
+      },
+      {
+        "literal_index": 3,
+        "original": "\"Turning off after the current call\"",
+        "translated": "\"当前通话结束后关闭\""
+      },
+      {
+        "literal_index": 4,
+        "original": "\"Turning on after current calls end\"",
+        "translated": "\"所有通话结束后开启\""
+      },
+      {
+        "literal_index": 5,
+        "original": "\"Changing the default dialer\"",
+        "translated": "\"正在切换默认电话应用\""
+      },
+      {
+        "literal_index": 6,
+        "original": "\"Waiting to become the default dialer\"",
+        "translated": "\"等待设为默认电话应用\""
+      },
+      {
+        "literal_index": 7,
+        "original": "\"Waiting to restore your previous dialer\"",
+        "translated": "\"等待恢复之前的电话应用\""
+      },
+      {
+        "literal_index": 8,
+        "original": "\"Ready to bridge calls to the PBX\"",
+        "translated": "\"已就绪，可以将通话桥接至 PBX\""
+      },
+      {
+        "literal_index": 9,
+        "original": "\"Gateway off; this app remains the default phone app\"",
+        "translated": "\"网关已关闭；本应用仍是默认电话应用\""
+      },
+      {
+        "literal_index": 10,
+        "original": "\"Gateway off; dialer restoration needs attention\"",
+        "translated": "\"网关已关闭；请检查电话应用是否已恢复\""
+      },
+      {
+        "literal_index": 11,
+        "original": "\"Gateway off; calls stay with your dialer\"",
+        "translated": "\"网关已关闭；通话由原电话应用处理\""
+      },
+      {
+        "literal_index": 12,
+        "original": "\"Call access\"",
+        "translated": "\"通话访问模式\""
+      },
+      {
+        "literal_index": 13,
+        "original": "\"This app is the default dialer\"",
+        "translated": "\"本应用是默认电话应用\""
+      },
+      {
+        "literal_index": 14,
+        "original": "\"Default dialer selection required\"",
+        "translated": "\"需要选择默认电话应用\""
+      },
+      {
+        "literal_index": 15,
+        "original": "\"Alongside-dialer access is unavailable on Android 11\"",
+        "translated": "\"Android 11 不支持与原电话应用并行访问通话\""
+      },
+      {
+        "literal_index": 16,
+        "original": "\"Alongside your current dialer\"",
+        "translated": "\"与当前电话应用并行使用\""
+      },
+      {
+        "literal_index": 17,
+        "original": "\"Enable takeover to make this app the default phone app.\"",
+        "translated": "\"开启通话接管以将本应用设为默认电话应用。\""
+      },
+      {
+        "literal_index": 18,
+        "original": "\"This app stays the default when takeover is off.\"",
+        "translated": "\"关闭通话接管后，本应用仍保持为默认电话应用。\""
+      },
+      {
+        "literal_index": 19,
+        "original": "\"Turning takeover off tries to restore your previous phone app.\"",
+        "translated": "\"关闭通话接管时，会尝试恢复之前的电话应用。\""
+      },
+      {
+        "literal_index": 20,
+        "original": "\"Enable takeover\"",
+        "translated": "\"开启通话接管\""
+      },
+      {
+        "literal_index": 21,
+        "original": "\"Default dialer selection is unavailable on this device.\"",
+        "translated": "\"此设备无法选择默认电话应用。\""
+      },
+      {
+        "literal_index": 22,
+        "original": "\"Restore previous dialer\"",
+        "translated": "\"恢复之前的电话应用\""
+      },
+      {
+        "literal_index": 23,
+        "original": "\"Choose dialer in Settings\"",
+        "translated": "\"在系统设置中选择电话应用\""
+      },
+      {
+        "literal_index": 24,
+        "original": "\"Cancel dialer change\"",
+        "translated": "\"取消切换电话应用\""
+      },
+      {
+        "literal_index": 25,
+        "original": "\"Mute call audio on this phone\"",
+        "translated": "\"尝试将本机听筒或扬声器静音\""
+      },
+      {
+        "literal_index": 26,
+        "original": "\"Playback muting cannot be attempted with the current setup. The phone microphone remains muted during gateway calls. Changes apply to the next call.\"",
+        "translated": "\"当前配置无法尝试将播放声音静音。网关通话期间，手机麦克风始终静音。更改在下次通话生效。\""
+      },
+      {
+        "literal_index": 27,
+        "original": "\"Muting stopped direct telephony audio on this phone, so it is skipped when that method is used. Turn this off and on again to retest.\"",
+        "translated": "\"静音导致本机的直连通话音频中断，因此使用该方式时会跳过静音。关闭并重新开启此选项可再次测试。\""
+      },
+      {
+        "literal_index": 28,
+        "original": "\"When enabled, attempts to silence the earpiece or speaker. The phone microphone remains muted during gateway calls. Changes apply to the next call.\"",
+        "translated": "\"开启后会尝试将听筒或扬声器静音。网关通话期间，手机麦克风始终静音。更改在下次通话生效。\""
+      },
+      {
+        "literal_index": 29,
+        "original": "\"Changes pending until calls end\"",
+        "translated": "\"更改将在所有通话结束后生效\""
+      },
+      {
+        "literal_index": 30,
+        "original": "\"Health\"",
+        "translated": "\"运行状态\""
+      },
+      {
+        "literal_index": 31,
+        "original": "\"Health checks will start after current calls end.\"",
+        "translated": "\"所有通话结束后开始状态检查。\""
+      },
+      {
+        "literal_index": 32,
+        "original": "\"Health checks are paused while takeover is off.\"",
+        "translated": "\"关闭通话接管期间暂停状态检查。\""
+      },
+      {
+        "literal_index": 35,
+        "original": "\"Stopped while takeover is off\"",
+        "translated": "\"关闭通话接管期间已停止\""
+      },
+      {
+        "literal_index": 36,
+        "original": "\"Call audio access\"",
+        "translated": "\"通话音频访问权限\""
+      },
+      {
+        "literal_index": 37,
+        "original": "\"Doze allowlisted\"",
+        "translated": "\"已加入 Doze 省电白名单\""
+      },
+      {
+        "literal_index": 38,
+        "original": "\"SIP registration\"",
+        "translated": "\"SIP 注册\""
+      },
+      {
+        "literal_index": 39,
+        "original": "\"Stopped while takeover is off\"",
+        "translated": "\"关闭通话接管期间已停止\""
+      },
+      {
+        "literal_index": 40,
+        "original": "\"Grant Shizuku\"",
+        "translated": "\"授予 Shizuku 权限\""
+      },
+      {
+        "literal_index": 41,
+        "original": "\"Re-run setup\"",
+        "translated": "\"重新执行配置\""
+      },
+      {
+        "literal_index": 42,
+        "original": "\"Reconnect SIP\"",
+        "translated": "\"重新连接 SIP\""
+      },
+      {
+        "literal_index": 43,
+        "original": "\"Call\"",
+        "translated": "\"通话\""
+      },
+      {
+        "literal_index": 44,
+        "original": "\"No active session\"",
+        "translated": "\"无活动会话\""
+      },
+      {
+        "literal_index": 45,
+        "original": "\"Current audio method: ${if (callAudio.available) callAudio.backendLabel else \"status unavailable\"}\"",
+        "translated": "\"当前音频方式：${if (callAudio.available) callAudio.backendLabel else \"状态不可用\"}\""
+      },
+      {
+        "literal_index": 46,
+        "original": "\"Local playback (Android): \"",
+        "translated": "\"本机播放（Android）：\""
+      },
+      {
+        "literal_index": 47,
+        "original": "\"mute state unavailable\"",
+        "translated": "\"静音状态不可用\""
+      },
+      {
+        "literal_index": 48,
+        "original": "\"muting not requested\"",
+        "translated": "\"未请求静音\""
+      },
+      {
+        "literal_index": 49,
+        "original": "\"mute request applied\"",
+        "translated": "\"静音请求已应用\""
+      },
+      {
+        "literal_index": 50,
+        "original": "\"existing mute preserved\"",
+        "translated": "\"保留原有静音状态\""
+      },
+      {
+        "literal_index": 51,
+        "original": "\"mute request not applied\"",
+        "translated": "\"静音请求未应用\""
+      },
+      {
+        "literal_index": 52,
+        "original": "\"muting unsupported with this audio method\"",
+        "translated": "\"此音频方式不支持静音\""
+      },
+      {
+        "literal_index": 53,
+        "original": "\"mute state unknown\"",
+        "translated": "\"静音状态未知\""
+      },
+      {
+        "literal_index": 54,
+        "original": "\"Audio recovered: ${callAudio.recoveryDetail}\"",
+        "translated": "\"音频恢复详情：${callAudio.recoveryDetail}\""
+      },
+      {
+        "literal_index": 55,
+        "original": "\"Next call: playback muting ${if (cur.muteEarpiece) \"requested\" else \"off\"}.\"",
+        "translated": "\"下次通话：本机播放静音${if (cur.muteEarpiece) \"已请求\" else \"关闭\"}。\""
+      },
+      {
+        "literal_index": 56,
+        "original": "\"Call audio is not open.\"",
+        "translated": "\"通话音频尚未打开。\""
+      },
+      {
+        "literal_index": 57,
+        "original": "\"Local call playback restoration is unconfirmed. Sound may remain muted.\"",
+        "translated": "\"尚未确认本机通话声音已恢复，可能仍处于静音状态。\""
+      },
+      {
+        "literal_index": 58,
+        "original": "\"Retry restoring playback\"",
+        "translated": "\"重试恢复播放声音\""
+      },
+      {
+        "literal_index": 59,
+        "original": "\"If call sound stays muted, raise the call volume during a normal phone call.\"",
+        "translated": "\"如果通话仍无声音，请在普通电话通话中调高通话音量。\""
+      },
+      {
+        "literal_index": 60,
+        "original": "\"Echo incoming calls (test)\"",
+        "translated": "\"蜂窝来电回声测试（不桥接 PBX）\""
+      },
+      {
+        "literal_index": 61,
+        "original": "\"While the gateway is on, answers incoming cellular calls and echoes the caller's audio instead of connecting the PBX. Changes apply after the current call ends.\"",
+        "translated": "\"网关开启时，接听蜂窝来电并将声音回传给来电方，不连接 PBX。更改在当前通话结束后生效。\""
+      },
+      {
+        "literal_index": 62,
+        "original": "\"Echo test enabled\"",
+        "translated": "\"回声测试已开启\""
+      },
+      {
+        "literal_index": 63,
+        "original": "\"Disable echo test\"",
+        "translated": "\"关闭回声测试\""
+      },
+      {
+        "literal_index": 64,
+        "original": "\"Hide advanced settings\"",
+        "translated": "\"收起高级设置\""
+      },
+      {
+        "literal_index": 65,
+        "original": "\"Advanced settings\"",
+        "translated": "\"高级设置\""
+      },
+      {
+        "literal_index": 66,
+        "original": "\"Platform integration\"",
+        "translated": "\"系统集成\""
+      },
+      {
+        "literal_index": 67,
+        "original": "\"Call access\"",
+        "translated": "\"通话访问模式\""
+      },
+      {
+        "literal_index": 68,
+        "original": "\"Automatic\"",
+        "translated": "\"自动\""
+      },
+      {
+        "literal_index": 69,
+        "original": "\"Alongside dialer\"",
+        "translated": "\"伴随现有电话应用\""
+      },
+      {
+        "literal_index": 70,
+        "original": "\"Default dialer\"",
+        "translated": "\"默认电话应用模式\""
+      },
+      {
+        "literal_index": 71,
+        "original": "\"Android 11 requires this app as the default phone app.\"",
+        "translated": "\"Android 11 要求将本应用设为默认电话应用。\""
+      },
+      {
+        "literal_index": 72,
+        "original": "\"Works alongside your phone app unless this app is the default.\"",
+        "translated": "\"本应用不是默认电话应用时，与原电话应用并行运行。\""
+      },
+      {
+        "literal_index": 73,
+        "original": "\"Requires Android 12 or later.\"",
+        "translated": "\"需要 Android 12 或更高版本。\""
+      },
+      {
+        "literal_index": 74,
+        "original": "\"Restore your usual phone app to use this mode.\"",
+        "translated": "\"请先恢复常用电话应用，再使用此模式。\""
+      },
+      {
+        "literal_index": 75,
+        "original": "\"Keeps your current phone app.\"",
+        "translated": "\"保留当前电话应用。\""
+      },
+      {
+        "literal_index": 76,
+        "original": "\"Enable takeover or tap Make default phone app to switch.\"",
+        "translated": "\"开启通话接管，或点击“设为默认电话应用”进行切换。\""
+      },
+      {
+        "literal_index": 77,
+        "original": "\"Applies after current calls end.\"",
+        "translated": "\"所有通话结束后生效。\""
+      },
+      {
+        "literal_index": 78,
+        "original": "\"Keep this app as the default phone app when gateway is off\"",
+        "translated": "\"网关关闭时仍将本应用保留为默认电话应用\""
+      },
+      {
+        "literal_index": 79,
+        "original": "\"When disabled, turning takeover off tries to restore your previous phone app.\"",
+        "translated": "\"关闭此选项后，关闭通话接管时会尝试恢复之前的电话应用。\""
+      },
+      {
+        "literal_index": 80,
+        "original": "\"Make default phone app\"",
+        "translated": "\"设为默认电话应用\""
+      },
+      {
+        "literal_index": 81,
+        "original": "\"Choose dialer in Settings\"",
+        "translated": "\"在系统设置中选择电话应用\""
+      },
+      {
+        "literal_index": 82,
+        "original": "\"Manual dialer selection leaves takeover unchanged. Selecting Default dialer above applies to the next switch-on.\"",
+        "translated": "\"手动选择电话应用不会改变通话接管开关。上方选择的“默认电话应用”模式将在下次开启时应用。\""
+      },
+      {
+        "literal_index": 83,
+        "original": "\"Cellular audio\"",
+        "translated": "\"蜂窝通话音频方式\""
+      },
+      {
+        "literal_index": 84,
+        "original": "\"Automatic\"",
+        "translated": "\"自动\""
+      },
+      {
+        "literal_index": 85,
+        "original": "\"Direct telephony\"",
+        "translated": "\"直接采集和播放通话音频\""
+      },
+      {
+        "literal_index": 86,
+        "original": "\"Cellular redirection\"",
+        "translated": "\"蜂窝通话音频重定向\""
+      },
+      {
+        "literal_index": 87,
+        "original": "\"Prefers cellular call redirection; falls back to direct telephony during setup.\"",
+        "translated": "\"优先使用蜂窝通话重定向；配置时若不可用，则回退至直连通话音频。\""
+      },
+      {
+        "literal_index": 88,
+        "original": "\"Uses direct cellular audio capture and playback, without redirection fallback.\"",
+        "translated": "\"直接采集和播放蜂窝通话音频，不回退至重定向方式。\""
+      },
+      {
+        "literal_index": 89,
+        "original": "\"Uses cellular call redirection only. Requires Android 13+ and privileged access.\"",
+        "translated": "\"仅使用蜂窝通话重定向，需要 Android 13 或更高版本及特权访问权限。\""
+      },
+      {
+        "literal_index": 90,
+        "original": "\" Changes apply to the next call.\"",
+        "translated": "\" 更改在下次通话生效。\""
+      },
+      {
+        "literal_index": 91,
+        "original": "\"Applies after current calls end.\"",
+        "translated": "\"所有通话结束后生效。\""
+      },
+      {
+        "literal_index": 92,
+        "original": "\"Diagnostics\"",
+        "translated": "\"诊断信息\""
+      },
+      {
+        "literal_index": 95,
+        "original": "\"Last reported audio method: ${callAudio.backendLabel}\"",
+        "translated": "\"最近报告的音频方式：${callAudio.backendLabel}\""
+      },
+      {
+        "literal_index": 96,
+        "original": "\"Playback mute: ${callAudio.muteDetail}\"",
+        "translated": "\"播放静音详情：${callAudio.muteDetail}\""
+      },
+      {
+        "literal_index": 97,
+        "original": "\"Playback restoration: ${callAudio.restoreDetail}\"",
+        "translated": "\"播放恢复详情：${callAudio.restoreDetail}\""
+      },
+      {
+        "literal_index": 100,
+        "original": "\"Waiting for helper\"",
+        "translated": "\"等待辅助服务\""
+      },
+      {
+        "literal_index": 101,
+        "original": "\"Audio access and frame counters do not verify remote delivery. Verify both directions on this device.\"",
+        "translated": "\"具备音频权限和帧计数并不能证明远端收到音频，请在本机验证双向通话。\""
+      },
+      {
+        "literal_index": 102,
+        "original": "\"Log\"",
+        "translated": "\"日志\""
+      },
+      {
+        "literal_index": 104,
+        "original": "\"Settings\"",
+        "translated": "\"设置\""
+      },
+      {
+        "literal_index": 105,
+        "original": "\"SIP stack\"",
+        "translated": "\"SIP 协议栈\""
+      },
+      {
+        "literal_index": 106,
+        "original": "\"Transport\"",
+        "translated": "\"传输协议\""
+      },
+      {
+        "literal_index": 107,
+        "original": "\"SRTP (TLS only)\"",
+        "translated": "\"SRTP（仅适用于 TLS）\""
+      },
+      {
+        "literal_index": 108,
+        "original": "\"PBX host\"",
+        "translated": "\"PBX 主机地址\""
+      },
+      {
+        "literal_index": 109,
+        "original": "\"PBX port\"",
+        "translated": "\"PBX 端口\""
+      },
+      {
+        "literal_index": 110,
+        "original": "\"SIP domain (empty = PBX host)\"",
+        "translated": "\"SIP 域（留空则使用 PBX 主机地址）\""
+      },
+      {
+        "literal_index": 111,
+        "original": "\"Extension / user\"",
+        "translated": "\"分机号 / 用户名\""
+      },
+      {
+        "literal_index": 112,
+        "original": "\"Password\"",
+        "translated": "\"密码\""
+      },
+      {
+        "literal_index": 113,
+        "original": "\"Cellular inbound -> SIP target (blank = username)\"",
+        "translated": "\"蜂窝来电转接至 SIP 目标（留空使用用户名）\""
+      },
+      {
+        "literal_index": 114,
+        "original": "\"Allowed dial-out prefixes (comma separated, empty = any)\"",
+        "translated": "\"允许外拨的号码前缀（英文逗号分隔，留空不限）\""
+      },
+      {
+        "literal_index": 115,
+        "original": "\"Unsaved changes\"",
+        "translated": "\"有未保存的更改\""
+      },
+      {
+        "literal_index": 116,
+        "original": "\"Changes pending until calls end\"",
+        "translated": "\"更改将在所有通话结束后生效\""
+      },
+      {
+        "literal_index": 117,
+        "original": "\"Save & apply\"",
+        "translated": "\"保存并应用\""
+      },
+      {
+        "literal_index": 118,
+        "original": "\"Saved changes apply after the current call ends.\"",
+        "translated": "\"已保存的更改在当前通话结束后生效。\""
+      },
+      {
+        "literal_index": 119,
+        "original": "\"Saved SIP settings are used when takeover is next enabled.\"",
+        "translated": "\"已保存的 SIP 设置将在下次开启通话接管时使用。\""
+      },
+      {
+        "literal_index": 120,
+        "original": "\"Unregister while the phone cannot take calls\"",
+        "translated": "\"手机无法处理网关通话时暂停 SIP 注册\""
+      },
+      {
+        "literal_index": 121,
+        "original": "\"At startup, waits for the phone to be ready before registering with the PBX. \"",
+        "translated": "\"启动时等待手机就绪，再向 PBX 注册。\""
+      },
+      {
+        "literal_index": 122,
+        "original": "\"Later problems get ${GatewayRuntime.SIP_HOLD_GRACE_MS / 1000} s to recover before unregistering so the PBX can fail over. \"",
+        "translated": "\"后续出现问题时，将等待 ${GatewayRuntime.SIP_HOLD_GRACE_MS / 1000} 秒尝试恢复，再注销注册，以便 PBX 切换备用线路。\""
+      },
+      {
+        "literal_index": 123,
+        "original": "\"Registration changes wait for calls to end; registers again as soon as the phone is ready.\"",
+        "translated": "\"注册状态的更改会等待通话结束；手机就绪后立即重新注册。\""
+      },
+      {
+        "literal_index": 124,
+        "original": "\"pjsip debug log\"",
+        "translated": "\"pjsip 调试日志\""
+      },
+      {
+        "literal_index": 125,
+        "original": "\"Info-level logs with masked numbers\"",
+        "translated": "\"记录 Info 级别日志，号码已脱敏\""
+      }
+    ],
+    "app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/GatewayDialerActivity.kt": [
+      {
+        "literal_index": 1,
+        "original": "\"No gateway session\"",
+        "translated": "\"无网关会话\""
+      },
+      {
+        "literal_index": 2,
+        "original": "\"Gateway bridge active\"",
+        "translated": "\"网关桥接中\""
+      },
+      {
+        "literal_index": 3,
+        "original": "\"Gateway will turn off after current calls end.\"",
+        "translated": "\"网关将在所有通话结束后关闭。\""
+      },
+      {
+        "literal_index": 4,
+        "original": "\"Gateway will turn on after current calls end.\"",
+        "translated": "\"网关将在所有通话结束后开启。\""
+      },
+      {
+        "literal_index": 5,
+        "original": "\"Waiting for current calls to end before changing the dialer.\"",
+        "translated": "\"等待所有通话结束后切换电话应用。\""
+      },
+      {
+        "literal_index": 6,
+        "original": "\"Gateway is off. Switch to your usual dialer to handle calls.\"",
+        "translated": "\"网关已关闭，请切换至常用电话应用处理通话。\""
+      },
+      {
+        "literal_index": 7,
+        "original": "\"Gateway is ready to bridge calls through the PBX.\"",
+        "translated": "\"网关已就绪，可以通过 PBX 桥接通话。\""
+      },
+      {
+        "literal_index": 8,
+        "original": "\"Gateway is unavailable. Open configuration or switch to your usual dialer.\"",
+        "translated": "\"网关不可用，请打开配置或切换至常用电话应用。\""
+      },
+      {
+        "literal_index": 9,
+        "original": "\"Turn takeover off\"",
+        "translated": "\"关闭通话接管\""
+      },
+      {
+        "literal_index": 10,
+        "original": "\"Turn takeover on\"",
+        "translated": "\"开启通话接管\""
+      },
+      {
+        "literal_index": 11,
+        "original": "\"For manual calls, restore your usual phone app or choose one in system Settings.\"",
+        "translated": "\"如需手动拨号，请恢复常用电话应用，或在系统设置中选择电话应用。\""
+      },
+      {
+        "literal_index": 12,
+        "original": "\"Restore previous dialer\"",
+        "translated": "\"恢复之前的电话应用\""
+      },
+      {
+        "literal_index": 13,
+        "original": "\"Choose dialer in Settings\"",
+        "translated": "\"在系统设置中选择电话应用\""
+      },
+      {
+        "literal_index": 14,
+        "original": "\"Cancel dialer change\"",
+        "translated": "\"取消切换电话应用\""
+      },
+      {
+        "literal_index": 15,
+        "original": "\"Enable takeover\"",
+        "translated": "\"开启通话接管\""
+      },
+      {
+        "literal_index": 16,
+        "original": "\"Open configuration\"",
+        "translated": "\"打开配置\""
+      }
+    ],
+    "app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/GatewayDialerService.kt": [
+      {
+        "literal_index": 1,
+        "original": "\"Cellular call\"",
+        "translated": "\"蜂窝通话\""
+      },
+      {
+        "literal_index": 2,
+        "original": "\"Incoming cellular call\"",
+        "translated": "\"蜂窝来电\""
+      },
+      {
+        "literal_index": 3,
+        "original": "\"Cellular call in progress\"",
+        "translated": "\"蜂窝通话进行中\""
+      },
+      {
+        "literal_index": 4,
+        "original": "\"Open gateway status or switch dialer for recovery\"",
+        "translated": "\"打开网关状态，或切换电话应用以恢复通话\""
+      }
+    ],
+    "app/src/main/kotlin/io/github/sparkcyf/voicesipagent/app/GatewayService.kt": [
+      {
+        "literal_index": 1,
+        "original": "\"Gateway status\"",
+        "translated": "\"网关状态\""
+      }
+    ]
+  }
+}

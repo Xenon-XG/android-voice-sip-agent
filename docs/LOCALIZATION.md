@@ -1,23 +1,25 @@
-# Chinese UI localization
+# Audited display-literal-only Chinese edition
 
-The app follows the Android system language. Chinese locales use `app/src/main/res/values-zh/strings.xml`; other locales retain the English fallback resources. The existing Chinese user guide is `README.zh.md`.
+This pass replaces the previous localization implementation. Its baseline is commit `a134b8e5e0424024870b53252eb0d1b9f4d3195e`.
 
-Only presentation code and string resources are changed. The main screen, dialer recovery screen, app label, notification channels and notifications use resources. SRTP labels are translated independently of their persisted `off` / `optional` / `mandatory` values. The built-in SIP stack label is translated independently of its `builtin` identifier.
+Only 139 reviewed display string literals in the original `MainActivity`, `GatewayDialerActivity`, `GatewayService` and `GatewayDialerService` are translated. No runtime translation adapter, resource lookup or new enum-label mapping is introduced. This edition has fixed Chinese labels; the original product identity, shared statuses, validation errors, protocol IDs and technical diagnostic values remain verbatim. Some technical values therefore remain English.
 
-`UiStatusText.kt` adapts legacy English status strings only when rendering screens and notifications. Those strings are also used by ADB and logs, so their producers remain unchanged. Exact matches and anchored known templates are translated; unknown diagnostics and opaque error details remain verbatim. Nested templates have a depth limit. SIP response reasons, session identifiers, low-level audio diagnostics, health keys and raw logs intentionally remain unchanged for troubleshooting.
+The first-pass `UiStatusText` adapter and its tests are removed, original resources restored, and the original port-error/save-button data path, enum label functions, interpolation expressions and notification summary chain reinstated.
 
-No changes are made to SIP/RTP, call routing, audio processing, Shizuku setup, default-dialer transitions, settings storage, credential handling, component declarations or build settings.
+See [the page-by-page audit](LOCALIZATION_AUDIT.zh.md) for every screen section, its original business binding, preserved values and translation decision. `localization-literals.json` records every approved source literal.
 
-## Validation
-
-Run:
+## Source proof
 
 ```sh
-./gradlew :sip:test :gateway:test :app:testDebugUnitTest :app:assembleDebug
+python3 tools/verify_display_only_localization.py --self-test
 ```
 
-`UiStatusTextTest` covers both SIP registration formats, notification prefixes, call summaries, opaque failure details, unknown input and bounded recursion. The Android build requires the SDK and generated pjsua2 bindings/native libraries as described in the project guide.
+The checker reverses the reviewed literal replacements and requires the resulting source bytes to match upstream exactly, independently verifies interpolation code, compares 134 protected files byte for byte, and rejects added module source files. Mutation checks demonstrate rejection of changed callbacks, validation conditions, interpolation computations and unreviewed text.
 
-Before release, compare an English and Chinese device/emulator: main screen and advanced settings; invalid ports (empty, 0, 65536) and valid ports (1, 5060, 65535); save/apply and pending-call settings; takeover on/off and dialer recovery; notifications; SIP registration and bidirectional test calls. Text expansion and physical call/audio behavior require device verification.
+## Build and device validation
 
-In the localization preparation environment, XML key/placeholder/reference checks and source boundary review passed. Gradle execution was blocked before configuration because the distribution host was unreachable. Compilation, Android unit tests, APK generation and physical-device behavior were not verified there.
+The release workflow runs the unchanged core tests, builds the original native libraries, builds both the upstream control APK and Chinese APK using the same toolchain/debug certificate, runs all Android module unit tests, and verifies signatures before publishing a clearly marked prerelease.
+
+The paired APKs make an original-versus-Chinese device comparison possible without changing the package identity. The signing certificate is a CI debug certificate, not an official release key, so it may differ from APKs produced by earlier runs or by upstream.
+
+Source equivalence and passing tests constrain the translation change; they do not prove physical audio routing or resolve a device-specific report without reproduction steps. Verify takeover on/off, dialer role restoration, invalid/valid ports, unsaved/pending settings, both call directions, audio methods, muting, loopback and notifications on the same device and configuration. Never treat a test pass alone as proof of equivalent hardware behavior.
