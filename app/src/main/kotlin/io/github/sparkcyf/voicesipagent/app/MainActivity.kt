@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -77,6 +78,7 @@ class MainActivity : DialerRoleActivity() {
 @Composable
 private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modifier, requestDialer: () -> Unit, switchDialer: () -> Unit,
     chooseDialer: () -> Unit, cancelDialer: () -> Unit, setTakeover: (Boolean) -> Unit, roleMessage: String) {
+    val context = LocalContext.current
     val h by rt.health.collectAsState()
     val callAudio by rt.callAudioStatus.collectAsState()
     val directMuteIncompatible by rt.directMuteIncompatible.collectAsState()
@@ -86,200 +88,200 @@ private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modif
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Voice SIP Agent", style = MaterialTheme.typography.headlineSmall)
+        Text(context.getString(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
         val cur by rt.settingsFlow.collectAsState()
-        Section("Takeover") {
-            Toggle("Take over calls", cur.takeover, setTakeover) {
+        Section(context.getString(R.string.ui_takeover)) {
+            Toggle(context.getString(R.string.ui_take_over_calls), cur.takeover, setTakeover) {
                 when {
-                    h.takeoverOffPending -> "Turning off after the current call"
-                    h.takeoverOnPending -> "Turning on after current calls end"
-                    h.dialerChangeRunning -> "Changing the default dialer"
-                    h.dialerChangePending -> if (h.dialerChangeAcquire) "Waiting to become the default dialer" else "Waiting to restore your previous dialer"
-                    cur.takeover -> if (h.cellularReady && !h.loopbackTest) "Ready to bridge calls to the PBX" else h.readinessDetail
-                    h.holdsDialer && cur.keepDefaultDialer -> "Gateway off; this app remains the default phone app"
-                    h.holdsDialer -> "Gateway off; dialer restoration needs attention"
-                    else -> "Gateway off; calls stay with your dialer"
+                    h.takeoverOffPending -> context.getString(R.string.ui_turning_off_after_the_current_call)
+                    h.takeoverOnPending -> context.getString(R.string.ui_turning_on_after_current_calls_end)
+                    h.dialerChangeRunning -> context.getString(R.string.ui_changing_the_default_dialer)
+                    h.dialerChangePending -> if (h.dialerChangeAcquire) context.getString(R.string.ui_waiting_to_become_the_default_dialer) else context.getString(R.string.ui_waiting_to_restore_your_previous_dialer)
+                    cur.takeover -> if (h.cellularReady && !h.loopbackTest) context.getString(R.string.ui_ready_to_bridge_calls_to_the_pbx) else context.displayStatus(h.readinessDetail)
+                    h.holdsDialer && cur.keepDefaultDialer -> context.getString(R.string.ui_gateway_off_this_app_remains_the_default_phone_app)
+                    h.holdsDialer -> context.getString(R.string.ui_gateway_off_dialer_restoration_needs_attention)
+                    else -> context.getString(R.string.ui_gateway_off_calls_stay_with_your_dialer)
                 }
             }
             if (h.takeover || h.holdsDialer) {
-                Check("Call access", h.callAccessReady,
+                Check(context.getString(R.string.ui_call_access), h.callAccessReady,
                     if (h.effectiveCallAccess == CallAccess.DIALER) {
-                        if (h.holdsDialer) "This app is the default dialer" else "Default dialer selection required"
-                    } else if (Build.VERSION.SDK_INT == 30) "Alongside-dialer access is unavailable on Android 11"
-                    else "Alongside your current dialer")
+                        if (h.holdsDialer) context.getString(R.string.ui_this_app_is_the_default_dialer) else context.getString(R.string.ui_default_dialer_selection_required)
+                    } else if (Build.VERSION.SDK_INT == 30) context.getString(R.string.ui_alongside_dialer_access_is_unavailable_on_android_11)
+                    else context.getString(R.string.ui_alongside_your_current_dialer))
             }
             if (h.holdsDialer || h.effectiveCallAccess == CallAccess.DIALER) {
                 Text(when {
-                    !h.holdsDialer -> "Enable takeover to make this app the default phone app."
-                    cur.keepDefaultDialer -> "This app stays the default when takeover is off."
-                    else -> "Turning takeover off tries to restore your previous phone app."
+                    !h.holdsDialer -> context.getString(R.string.ui_enable_takeover_to_make_this_app_the_default_phone_app)
+                    cur.keepDefaultDialer -> context.getString(R.string.ui_this_app_stays_the_default_when_takeover_is_off)
+                    else -> context.getString(R.string.ui_turning_takeover_off_tries_to_restore_your_previous_phone_app)
                 }, style = MaterialTheme.typography.bodySmall)
             }
             if (h.effectiveCallAccess == CallAccess.DIALER && !h.holdsDialer) {
                 if (cur.takeover && !h.dialerChangePending) {
-                    Button(onClick = { setTakeover(true) }, enabled = h.dialerRoleAvailable && !h.dialerChangeRunning) { Text("Enable takeover") }
+                    Button(onClick = { setTakeover(true) }, enabled = h.dialerRoleAvailable && !h.dialerChangeRunning) { Text(context.getString(R.string.ui_enable_takeover)) }
                 }
-                if (!h.dialerRoleAvailable) Text("Default dialer selection is unavailable on this device.")
+                if (!h.dialerRoleAvailable) Text(context.getString(R.string.ui_default_dialer_selection_is_unavailable_on_this_device))
             }
-            if (roleMessage.isNotEmpty()) Text(roleMessage)
+            if (roleMessage.isNotEmpty()) Text(context.displayStatus(roleMessage))
             if (h.holdsDialer || h.dialerChangeFailed) {
                 if (h.holdsDialer && cur.takeover && h.shizuku == ShizukuConnector.State.CONNECTED) {
-                    OutlinedButton(onClick = switchDialer, enabled = !h.dialerChangeRunning) { Text("Restore previous dialer") }
+                    OutlinedButton(onClick = switchDialer, enabled = !h.dialerChangeRunning) { Text(context.getString(R.string.ui_restore_previous_dialer)) }
                 }
-                OutlinedButton(onClick = chooseDialer, enabled = !h.dialerChangeRunning) { Text("Choose dialer in Settings") }
+                OutlinedButton(onClick = chooseDialer, enabled = !h.dialerChangeRunning) { Text(context.getString(R.string.ui_choose_dialer_in_settings)) }
             }
-            if (h.dialerChangePending) OutlinedButton(onClick = cancelDialer) { Text("Cancel dialer change") }
-            Toggle("Mute call audio on this phone", cur.muteEarpiece, { rt.setMuteEarpiece(it) }) {
+            if (h.dialerChangePending) OutlinedButton(onClick = cancelDialer) { Text(context.getString(R.string.ui_cancel_dialer_change)) }
+            Toggle(context.getString(R.string.ui_mute_call_audio_on_this_phone), cur.muteEarpiece, { rt.setMuteEarpiece(it) }) {
                 val unavailable = h.privileged != null &&
                     (h.privileged?.get(HealthKeys.LOCAL_SUPPRESSION) != true || !h.audioReady)
                 if (cur.muteEarpiece && unavailable)
-                    "Playback muting cannot be attempted with the current setup. The phone microphone remains muted during gateway calls. Changes apply to the next call."
+                    context.getString(R.string.ui_playback_muting_cannot_be_attempted_with_the_current_setup_the_phone_m)
                 else if (cur.muteEarpiece && directMuteIncompatible)
-                    "Muting stopped direct telephony audio on this phone, so it is skipped when that method is used. Turn this off and on again to retest."
+                    context.getString(R.string.ui_muting_stopped_direct_telephony_audio_on_this_phone_so_it_is_skipped_w)
                 else
-                    "When enabled, attempts to silence the earpiece or speaker. The phone microphone remains muted during gateway calls. Changes apply to the next call."
+                    context.getString(R.string.ui_when_enabled_attempts_to_silence_the_earpiece_or_speaker_the_phone_mic)
             }
             if (h.settingsPending && pendingSettings?.hasSameSipSettings(cur) != false) {
-                Text("Changes pending until calls end", style = MaterialTheme.typography.bodySmall)
+                Text(context.getString(R.string.ui_changes_pending_until_calls_end), style = MaterialTheme.typography.bodySmall)
             }
         }
-        Section("Health") {
+        Section(context.getString(R.string.ui_health)) {
             val p = h.privileged
             val actionsEnabled = h.gatewayRunning && cur.takeover && !h.dialerChangeRunning
             Text(when {
-                h.takeover -> h.readinessDetail
-                h.takeoverOnPending -> "Health checks will start after current calls end."
-                else -> "Health checks are paused while takeover is off."
+                h.takeover -> context.displayStatus(h.readinessDetail)
+                h.takeoverOnPending -> context.getString(R.string.ui_health_checks_will_start_after_current_calls_end)
+                else -> context.getString(R.string.ui_health_checks_are_paused_while_takeover_is_off)
             }, style = MaterialTheme.typography.bodySmall)
             Check("Shizuku", h.shizuku == ShizukuConnector.State.CONNECTED,
-                if (h.takeover) "${h.shizuku} ${h.shizukuDetail}" else "Stopped while takeover is off")
-            Check("Call audio access", h.audioReady)
-            Check("Doze allowlisted", p?.get(HealthKeys.DOZE_ALLOWLISTED) == true)
-            Check("SIP registration", h.sip.ready,
-                if (h.takeover) h.sip.detail else "Stopped while takeover is off")
+                if (h.takeover) "${context.displayStatus(h.shizuku.name)} ${context.displayStatus(h.shizukuDetail)}" else context.getString(R.string.ui_stopped_while_takeover_is_off))
+            Check(context.getString(R.string.ui_call_audio_access), h.audioReady)
+            Check(context.getString(R.string.ui_doze_allowlisted), p?.get(HealthKeys.DOZE_ALLOWLISTED) == true)
+            Check(context.getString(R.string.ui_sip_registration), h.sip.ready,
+                if (h.takeover) context.displayStatus(h.sip.detail) else context.getString(R.string.ui_stopped_while_takeover_is_off))
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (h.shizuku == ShizukuConnector.State.PERMISSION_REQUIRED || h.shizuku == ShizukuConnector.State.PERMISSION_DENIED) {
-                    Button(onClick = { rt.shizuku.requestPermission() }, enabled = actionsEnabled) { Text("Grant Shizuku") }
+                    Button(onClick = { rt.shizuku.requestPermission() }, enabled = actionsEnabled) { Text(context.getString(R.string.ui_grant_shizuku)) }
                 }
                 OutlinedButton(onClick = { rt.runSetup() },
-                    enabled = actionsEnabled && h.shizuku == ShizukuConnector.State.CONNECTED) { Text("Re-run setup") }
+                    enabled = actionsEnabled && h.shizuku == ShizukuConnector.State.CONNECTED) { Text(context.getString(R.string.ui_re_run_setup)) }
                 OutlinedButton(onClick = { rt.restartSip() },
-                    enabled = actionsEnabled && cur.sipConfigured) { Text("Reconnect SIP") }
+                    enabled = actionsEnabled && cur.sipConfigured) { Text(context.getString(R.string.ui_reconnect_sip)) }
             }
         }
-        Section("Call") {
-            Text(h.calls.summary)
-            Text(h.session ?: "No active session")
+        Section(context.getString(R.string.ui_call)) {
+            Text(context.displayStatus(h.calls.summary))
+            Text(h.session ?: context.getString(R.string.ui_no_active_session))
             if (callAudio.active) {
-                Text("Current audio method: ${if (callAudio.available) callAudio.backendLabel else "status unavailable"}")
-                Text("Local playback (Android): " + when {
-                    !callAudio.available -> "mute state unavailable"
-                    !callAudio.muteRequested -> "muting not requested"
-                    callAudio.outputMute == CallAudioStatus.APPLIED -> "mute request applied"
-                    callAudio.outputMute == CallAudioStatus.PRESERVED -> "existing mute preserved"
-                    callAudio.outputMute == CallAudioStatus.NOT_APPLIED -> "mute request not applied"
-                    callAudio.outputMute == CallAudioStatus.UNSUPPORTED -> "muting unsupported with this audio method"
-                    else -> "mute state unknown"
+                Text(context.getString(R.string.ui_current_audio_method_1_s, context.displayStatus(if (callAudio.available) callAudio.backendLabel else context.getString(R.string.ui_status_unavailable))))
+                Text(context.getString(R.string.ui_local_playback_android) + when {
+                    !callAudio.available -> context.getString(R.string.ui_mute_state_unavailable)
+                    !callAudio.muteRequested -> context.getString(R.string.ui_muting_not_requested)
+                    callAudio.outputMute == CallAudioStatus.APPLIED -> context.getString(R.string.ui_mute_request_applied)
+                    callAudio.outputMute == CallAudioStatus.PRESERVED -> context.getString(R.string.ui_existing_mute_preserved)
+                    callAudio.outputMute == CallAudioStatus.NOT_APPLIED -> context.getString(R.string.ui_mute_request_not_applied)
+                    callAudio.outputMute == CallAudioStatus.UNSUPPORTED -> context.getString(R.string.ui_muting_unsupported_with_this_audio_method)
+                    else -> context.getString(R.string.ui_mute_state_unknown)
                 })
                 if (callAudio.available && callAudio.recoveryDetail.isNotEmpty()) {
-                    Text("Audio recovered: ${callAudio.recoveryDetail}", style = MaterialTheme.typography.bodySmall)
+                    Text(context.getString(R.string.ui_audio_recovered_1_s, callAudio.recoveryDetail), style = MaterialTheme.typography.bodySmall)
                 }
-                Text("Next call: playback muting ${if (cur.muteEarpiece) "requested" else "off"}.",
+                Text(context.getString(R.string.ui_next_call_playback_muting_1_s, if (cur.muteEarpiece) context.getString(R.string.ui_requested) else context.getString(R.string.ui_off)),
                     style = MaterialTheme.typography.bodySmall)
             } else if (h.calls.owned > 0 || h.session != null) {
-                Text("Call audio is not open.")
+                Text(context.getString(R.string.ui_call_audio_is_not_open))
             }
             if (callAudio.restorationPending) {
-                Text("Local call playback restoration is unconfirmed. Sound may remain muted.",
+                Text(context.getString(R.string.ui_local_call_playback_restoration_is_unconfirmed_sound_may_remain_muted),
                     color = MaterialTheme.colorScheme.error)
                 if (callAudio.ownsOutputChange && h.shizuku == ShizukuConnector.State.CONNECTED) {
                     OutlinedButton(onClick = { rt.retryAudioRestoration() },
                         enabled = !callAudio.active && h.calls.count == 0 && h.session == null) {
-                        Text("Retry restoring playback")
+                        Text(context.getString(R.string.ui_retry_restoring_playback))
                     }
                 } else {
-                    Text("If call sound stays muted, raise the call volume during a normal phone call.",
+                    Text(context.getString(R.string.ui_if_call_sound_stays_muted_raise_the_call_volume_during_a_normal_phone_),
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Toggle("Echo incoming calls (test)", h.loopbackTest, { rt.setLoopbackTest(it) }) {
-                "While the gateway is on, answers incoming cellular calls and echoes the caller's audio instead of connecting the PBX. Changes apply after the current call ends."
+            Toggle(context.getString(R.string.ui_echo_incoming_calls_test), h.loopbackTest, { rt.setLoopbackTest(it) }) {
+                context.getString(R.string.ui_while_the_gateway_is_on_answers_incoming_cellular_calls_and_echoes_the)
             }
             if (h.loopbackTest) {
-                Text("Echo test enabled", style = MaterialTheme.typography.titleSmall)
-                Button(onClick = { rt.setLoopbackTest(false) }) { Text("Disable echo test") }
+                Text(context.getString(R.string.ui_echo_test_enabled), style = MaterialTheme.typography.titleSmall)
+                Button(onClick = { rt.setLoopbackTest(false) }) { Text(context.getString(R.string.ui_disable_echo_test)) }
             }
         }
         SettingsSection(rt, editor)
         var advanced by rememberSaveable { mutableStateOf(false) }
-        OutlinedButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Hide advanced settings" else "Advanced settings") }
+        OutlinedButton(onClick = { advanced = !advanced }) { Text(if (advanced) context.getString(R.string.ui_hide_advanced_settings) else context.getString(R.string.ui_advanced_settings)) }
         if (advanced) {
-            Section("Platform integration") {
+            Section(context.getString(R.string.ui_platform_integration)) {
                 val preferredCallAccess = pendingSettings?.callAccess ?: cur.callAccess
-                Choice("Call access", listOf(CallAccess.AUTO, CallAccess.COMPANION, CallAccess.DIALER), preferredCallAccess,
-                    { when (it) { CallAccess.AUTO -> "Automatic"; CallAccess.COMPANION -> "Alongside dialer"; else -> "Default dialer" } },
+                Choice(context.getString(R.string.ui_call_access), listOf(CallAccess.AUTO, CallAccess.COMPANION, CallAccess.DIALER), preferredCallAccess,
+                    { when (it) { CallAccess.AUTO -> context.getString(R.string.ui_automatic); CallAccess.COMPANION -> context.getString(R.string.ui_alongside_dialer); else -> context.getString(R.string.ui_default_dialer) } },
                     enabled = { it != CallAccess.COMPANION || Build.VERSION.SDK_INT >= 31 }) {
                     rt.applySettings { current -> current.copy(callAccess = it) }
                 }
                 val callAccessHint = when (preferredCallAccess) {
                     CallAccess.AUTO -> if (Build.VERSION.SDK_INT < 31)
-                        "Android 11 requires this app as the default phone app."
-                    else "Works alongside your phone app unless this app is the default."
+                        context.getString(R.string.ui_android_11_requires_this_app_as_the_default_phone_app)
+                    else context.getString(R.string.ui_works_alongside_your_phone_app_unless_this_app_is_the_default)
                     CallAccess.COMPANION -> when {
-                        Build.VERSION.SDK_INT < 31 -> "Requires Android 12 or later."
-                        h.holdsDialer -> "Restore your usual phone app to use this mode."
-                        else -> "Keeps your current phone app."
+                        Build.VERSION.SDK_INT < 31 -> context.getString(R.string.ui_requires_android_12_or_later)
+                        h.holdsDialer -> context.getString(R.string.ui_restore_your_usual_phone_app_to_use_this_mode)
+                        else -> context.getString(R.string.ui_keeps_your_current_phone_app)
                     }
                     else -> if (h.holdsDialer) null
-                        else "Enable takeover or tap Make default phone app to switch."
+                        else context.getString(R.string.ui_enable_takeover_or_tap_make_default_phone_app_to_switch)
                 }
                 if (callAccessHint != null) Text(callAccessHint, style = MaterialTheme.typography.bodySmall)
                 if (preferredCallAccess != cur.callAccess) {
-                    Text("Applies after current calls end.", style = MaterialTheme.typography.bodySmall)
+                    Text(context.getString(R.string.ui_applies_after_current_calls_end), style = MaterialTheme.typography.bodySmall)
                 }
                 val dialerControlsEnabled = h.effectiveCallAccess == CallAccess.DIALER && !h.dialerChangeRunning
-                Toggle("Keep this app as the default phone app when gateway is off", cur.keepDefaultDialer,
+                Toggle(context.getString(R.string.ui_keep_this_app_as_the_default_phone_app_when_gateway_is_off), cur.keepDefaultDialer,
                     { rt.setKeepDefaultDialer(it) }, enabled = dialerControlsEnabled) {
-                    "When disabled, turning takeover off tries to restore your previous phone app."
+                    context.getString(R.string.ui_when_disabled_turning_takeover_off_tries_to_restore_your_previous_phon)
                 }
                 if (!h.holdsDialer && h.dialerRoleAvailable) {
-                    OutlinedButton(onClick = requestDialer, enabled = dialerControlsEnabled) { Text("Make default phone app") }
+                    OutlinedButton(onClick = requestDialer, enabled = dialerControlsEnabled) { Text(context.getString(R.string.ui_make_default_phone_app)) }
                 }
-                OutlinedButton(onClick = chooseDialer) { Text("Choose dialer in Settings") }
-                Text("Manual dialer selection leaves takeover unchanged. Selecting Default dialer above applies to the next switch-on.",
+                OutlinedButton(onClick = chooseDialer) { Text(context.getString(R.string.ui_choose_dialer_in_settings)) }
+                Text(context.getString(R.string.ui_manual_dialer_selection_leaves_takeover_unchanged_selecting_default_di),
                     style = MaterialTheme.typography.bodySmall)
                 val preferredAudioMethod = pendingSettings?.audioMethod ?: cur.audioMethod
-                Choice("Cellular audio", listOf(AudioMethod.AUTO, AudioMethod.LEGACY, AudioMethod.OFFICIAL), preferredAudioMethod,
-                    { when (it) { AudioMethod.AUTO -> "Automatic"; AudioMethod.LEGACY -> "Direct telephony"; else -> "Cellular redirection" } },
+                Choice(context.getString(R.string.ui_cellular_audio), listOf(AudioMethod.AUTO, AudioMethod.LEGACY, AudioMethod.OFFICIAL), preferredAudioMethod,
+                    { when (it) { AudioMethod.AUTO -> context.getString(R.string.ui_automatic); AudioMethod.LEGACY -> context.getString(R.string.ui_direct_telephony); else -> context.getString(R.string.ui_cellular_redirection) } },
                     enabled = { it != AudioMethod.OFFICIAL || Build.VERSION.SDK_INT >= 33 }) {
                     rt.applySettings { current -> current.copy(audioMethod = it) }
                 }
                 Text(when (preferredAudioMethod) {
-                    AudioMethod.AUTO -> "Prefers cellular call redirection; falls back to direct telephony during setup."
-                    AudioMethod.LEGACY -> "Uses direct cellular audio capture and playback, without redirection fallback."
-                    else -> "Uses cellular call redirection only. Requires Android 13+ and privileged access."
-                } + " Changes apply to the next call.", style = MaterialTheme.typography.bodySmall)
+                    AudioMethod.AUTO -> context.getString(R.string.ui_prefers_cellular_call_redirection_falls_back_to_direct_telephony_durin)
+                    AudioMethod.LEGACY -> context.getString(R.string.ui_uses_direct_cellular_audio_capture_and_playback_without_redirection_fa)
+                    else -> context.getString(R.string.ui_uses_cellular_call_redirection_only_requires_android_13_and_privileged)
+                } + context.getString(R.string.ui_changes_apply_to_the_next_call), style = MaterialTheme.typography.bodySmall)
                 if (preferredAudioMethod != cur.audioMethod) {
-                    Text("Applies after current calls end.", style = MaterialTheme.typography.bodySmall)
+                    Text(context.getString(R.string.ui_applies_after_current_calls_end), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Section("Diagnostics") {
+            Section(context.getString(R.string.ui_diagnostics)) {
                 Text("Android ${Build.VERSION.RELEASE}, API ${Build.VERSION.SDK_INT}")
                 Text("requestedCallAccess=${cur.callAccess} effective=${h.effectiveCallAccess} audio=${cur.audioMethod}")
-                if (callAudio.backend.isNotEmpty()) Text("Last reported audio method: ${callAudio.backendLabel}")
-                if (callAudio.muteDetail.isNotEmpty()) Text("Playback mute: ${callAudio.muteDetail}")
-                if (callAudio.restoreDetail.isNotEmpty()) Text("Playback restoration: ${callAudio.restoreDetail}")
-                Text(h.privileged?.entries?.joinToString("\n") { "${it.key}=${it.value}" } ?: "Waiting for helper")
+                if (callAudio.backend.isNotEmpty()) Text(context.getString(R.string.ui_last_reported_audio_method_1_s, context.displayStatus(callAudio.backendLabel)))
+                if (callAudio.muteDetail.isNotEmpty()) Text(context.getString(R.string.ui_playback_mute_1_s, callAudio.muteDetail))
+                if (callAudio.restoreDetail.isNotEmpty()) Text(context.getString(R.string.ui_playback_restoration_1_s, callAudio.restoreDetail))
+                Text(h.privileged?.entries?.joinToString("\n") { "${it.key}=${it.value}" } ?: context.getString(R.string.ui_waiting_for_helper))
                 Text(h.privilegedDetail)
                 Text(h.lastSetupLog)
-                Text("Audio access and frame counters do not verify remote delivery. Verify both directions on this device.")
+                Text(context.getString(R.string.ui_audio_access_and_frame_counters_do_not_verify_remote_delivery_verify_b))
             }
         }
-        Section("Log") {
+        Section(context.getString(R.string.ui_log)) {
             Text(log.takeLast(60).reversed().joinToString("\n"), fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp, lineHeight = 14.sp)
         }
@@ -288,6 +290,7 @@ private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modif
 
 @Composable
 private fun SettingsSection(rt: GatewayRuntime, editor: SipSettingsDraft) = with(editor) {
+    val context = LocalContext.current
     val cur by rt.settingsFlow.collectAsState()
     val pending by rt.pendingSettingsFlow.collectAsState()
     val health by rt.health.collectAsState()
@@ -295,9 +298,9 @@ private fun SettingsSection(rt: GatewayRuntime, editor: SipSettingsDraft) = with
     val builtin = stack == SipStack.BUILTIN
     val unsaved = hasUnsavedChanges(cur, pending)
     val sipPending = pending?.hasSameSipSettings(cur) == false
-    val portValidationError = portError
-    Section("Settings") {
-        Choice("SIP stack", SipStack.entries, stack, { it.id }) {
+    val portValidationError = portError?.let(context::displayStatus)
+    Section(context.getString(R.string.ui_settings)) {
+        Choice(context.getString(R.string.ui_sip_stack), SipStack.entries, stack, { if (it == SipStack.BUILTIN) context.getString(R.string.ui_built_in_udp) else it.id }) {
             stack = it
             // The built-in stack is UDP only.
             if (it == SipStack.BUILTIN) {
@@ -305,41 +308,41 @@ private fun SettingsSection(rt: GatewayRuntime, editor: SipSettingsDraft) = with
                 transport = SipTransport.UDP
             }
         }
-        Choice("Transport", SipTransport.entries, transport, { it.id }, enabled = { !builtin || it == SipTransport.UDP }) {
+        Choice(context.getString(R.string.ui_transport), SipTransport.entries, transport, { it.id }, enabled = { !builtin || it == SipTransport.UDP }) {
             // Follow the default port when it was still the previous transport's default.
             if (port == transport.defaultPort.toString()) port = it.defaultPort.toString()
             transport = it
         }
-        Choice("SRTP (TLS only)", SrtpPolicy.entries, srtp, { it.id }, enabled = { !builtin && transport == SipTransport.TLS }) {
+        Choice(context.getString(R.string.ui_srtp_tls_only), SrtpPolicy.entries, srtp, { context.displayStatus(it.id) }, enabled = { !builtin && transport == SipTransport.TLS }) {
             srtp = it
         }
-        Field("PBX host", server) { server = it }
-        Field("PBX port", port, KeyboardType.Number, error = portValidationError) { port = it }
-        Field("SIP domain (empty = PBX host)", domain) { domain = it }
-        Field("Extension / user", user) { user = it }
+        Field(context.getString(R.string.ui_pbx_host), server) { server = it }
+        Field(context.getString(R.string.ui_pbx_port), port, KeyboardType.Number, error = portValidationError) { port = it }
+        Field(context.getString(R.string.ui_sip_domain_empty_pbx_host), domain) { domain = it }
+        Field(context.getString(R.string.ui_extension_user), user) { user = it }
         OutlinedTextField(
-            value = password, onValueChange = { password = it }, label = { Text("Password") },
+            value = password, onValueChange = { password = it }, label = { Text(context.getString(R.string.ui_password)) },
             visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
-        Field("Cellular inbound -> SIP target (blank = username)", target) { target = it }
-        Field("Allowed dial-out prefixes (comma separated, empty = any)", prefixes) { prefixes = it }
-        if (unsaved) Text("Unsaved changes", style = MaterialTheme.typography.bodySmall,
+        Field(context.getString(R.string.ui_cellular_inbound_sip_target_blank_username), target) { target = it }
+        Field(context.getString(R.string.ui_allowed_dial_out_prefixes_comma_separated_empty_any), prefixes) { prefixes = it }
+        if (unsaved) Text(context.getString(R.string.ui_unsaved_changes), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary)
-        if (sipPending) Text("Changes pending until calls end", style = MaterialTheme.typography.bodySmall)
-        Button(onClick = { rt.applySettings(settingsUpdate()) }, enabled = portValidationError == null) { Text("Save & apply") }
+        if (sipPending) Text(context.getString(R.string.ui_changes_pending_until_calls_end), style = MaterialTheme.typography.bodySmall)
+        Button(onClick = { rt.applySettings(settingsUpdate()) }, enabled = portValidationError == null) { Text(context.getString(R.string.ui_save_apply)) }
         if (health.calls.count > 0 || health.session != null) {
-            if (!sipPending) Text("Saved changes apply after the current call ends.", style = MaterialTheme.typography.bodySmall)
+            if (!sipPending) Text(context.getString(R.string.ui_saved_changes_apply_after_the_current_call_ends), style = MaterialTheme.typography.bodySmall)
         } else if (!cur.takeover) {
-            Text("Saved SIP settings are used when takeover is next enabled.", style = MaterialTheme.typography.bodySmall)
+            Text(context.getString(R.string.ui_saved_sip_settings_are_used_when_takeover_is_next_enabled), style = MaterialTheme.typography.bodySmall)
         }
-        Toggle("Unregister while the phone cannot take calls", cur.holdSipWhenNotReady,
+        Toggle(context.getString(R.string.ui_unregister_while_the_phone_cannot_take_calls), cur.holdSipWhenNotReady,
             { rt.setHoldSipWhenNotReady(it) }) {
-            "At startup, waits for the phone to be ready before registering with the PBX. " +
-                "Later problems get ${GatewayRuntime.SIP_HOLD_GRACE_MS / 1000} s to recover before unregistering so the PBX can fail over. " +
-                "Registration changes wait for calls to end; registers again as soon as the phone is ready."
+            context.getString(R.string.ui_at_startup_waits_for_the_phone_to_be_ready_before_registering_with_the) +
+                context.getString(R.string.ui_later_problems_get_1_d_s_to_recover_before_unregistering_so_the_pbx_ca, GatewayRuntime.SIP_HOLD_GRACE_MS / 1000) +
+                context.getString(R.string.ui_registration_changes_wait_for_calls_to_end_registers_again_as_soon_as_)
         }
-        Toggle("pjsip debug log", cur.sipDebugLog, { rt.setSipDebugLog(it) }) {
-            "Info-level logs with masked numbers"
+        Toggle(context.getString(R.string.ui_pjsip_debug_log), cur.sipDebugLog, { rt.setSipDebugLog(it) }) {
+            context.getString(R.string.ui_info_level_logs_with_masked_numbers)
         }
     }
 }
