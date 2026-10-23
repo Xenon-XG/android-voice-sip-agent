@@ -167,6 +167,11 @@ private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modif
                 if (h.shizuku == ShizukuConnector.State.PERMISSION_REQUIRED || h.shizuku == ShizukuConnector.State.PERMISSION_DENIED) {
                     Button(onClick = { rt.shizuku.requestPermission() }, enabled = actionsEnabled) { Text(context.getString(R.string.ui_grant_shizuku)) }
                 }
+                if (h.shizuku == ShizukuConnector.State.ERROR) {
+                    OutlinedButton(onClick = { rt.shizuku.requestPermission() }, enabled = actionsEnabled) {
+                        Text(context.getString(R.string.ui_retry_shizuku))
+                    }
+                }
                 OutlinedButton(onClick = { rt.runSetup() },
                     enabled = actionsEnabled && h.shizuku == ShizukuConnector.State.CONNECTED) { Text(context.getString(R.string.ui_re_run_setup)) }
                 OutlinedButton(onClick = { rt.restartSip() },

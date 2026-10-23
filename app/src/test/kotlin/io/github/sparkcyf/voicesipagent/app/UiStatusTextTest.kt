@@ -17,6 +17,7 @@ class UiStatusTextTest {
         R.string.status_other_call_1_s to "其他通话：%1\$s",
         R.string.status_active to "通话中",
         R.string.status_incoming to "来电振铃",
+        R.string.status_userservice_timeout to "辅助服务连接超时（35 秒）。请检查 ShizukuServiceStarter 启动错误日志，然后重试。",
     )
     private fun display(text: String) = localizeStatus(text) { id, args ->
         val template = translations.getValue(id)
@@ -44,6 +45,11 @@ class UiStatusTextTest {
             "Gateway call: active EXTRA", "registered (300 s) trailing", "not registering")) {
             assertEquals(text, display(text))
         }
+    }
+
+    @Test fun helperTimeoutIsTranslatedWithoutHidingTheDiagnosticLogTag() {
+        assertEquals("辅助服务连接超时（35 秒）。请检查 ShizukuServiceStarter 启动错误日志，然后重试。",
+            display("UserService connection timed out; check Shizuku logs and retry"))
     }
 
     @Test fun recursiveStatusInputHasABoundedDepth() {

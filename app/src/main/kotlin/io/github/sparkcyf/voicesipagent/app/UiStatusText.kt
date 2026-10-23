@@ -91,6 +91,7 @@ private val fixedStatusResources = mapOf(
     "denied in Shizuku" to R.string.status_denied_in_shizuku,
     "Shizuku v13+ required" to R.string.status_shizuku_v13_required,
     "binding UserService" to R.string.status_binding_userservice,
+    "UserService connection timed out; check Shizuku logs and retry" to R.string.status_userservice_timeout,
     "This app is now the default dialer." to R.string.status_this_app_is_now_the_default_dialer,
     "Android did not select this app as default dialer. Use system default-app settings." to R.string.status_android_did_not_select_this_app_as_default_dialer_use_system_defa,
     "Default dialer selection was cancelled or declined." to R.string.status_default_dialer_selection_was_cancelled_or_declined,

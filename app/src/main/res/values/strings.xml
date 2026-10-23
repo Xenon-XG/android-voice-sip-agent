@@ -232,4 +232,6 @@
     <string name="status_active">"active"</string>
     <string name="status_held">"held"</string>
     <string name="status_connecting">"connecting"</string>
+    <string name="ui_retry_shizuku">Retry helper connection</string>
+    <string name="status_userservice_timeout">Helper connection timed out (35 seconds). Check ShizukuServiceStarter logs for startup errors, then retry.</string>
 </resources>

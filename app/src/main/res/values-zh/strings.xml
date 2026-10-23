@@ -232,4 +232,6 @@
     <string name="status_active">"通话中"</string>
     <string name="status_held">"保持中"</string>
     <string name="status_connecting">"正在连接"</string>
+    <string name="ui_retry_shizuku">重试辅助服务连接</string>
+    <string name="status_userservice_timeout">辅助服务连接超时（35 秒）。请检查 ShizukuServiceStarter 启动错误日志，然后重试。</string>
 </resources>

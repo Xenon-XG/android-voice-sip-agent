@@ -32,6 +32,7 @@ class ShizukuConnector(context: Context, private val log: (String) -> Unit) {
     private val main = Handler(Looper.getMainLooper())
     private var generation = 0L
     private var connection: ServiceConnection? = null
+    private var bindTimeout: Runnable? = null
 
     private val args = Shizuku.UserServiceArgs(ComponentName(app.packageName, PrivilegedService::class.java.name))
         .daemon(false)
@@ -77,7 +78,13 @@ class ShizukuConnector(context: Context, private val log: (String) -> Unit) {
 
     private val binderReceived = Shizuku.OnBinderReceivedListener { onBinder() }
     private val binderDead = Shizuku.OnBinderDeadListener {
-        synchronized(this) { if (started) set(State.SHIZUKU_NOT_RUNNING, null, "Shizuku binder died") }
+        synchronized(this) {
+            if (started) {
+                generation++
+                clearConnection(removeHelper = false)
+                set(State.SHIZUKU_NOT_RUNNING, null, "Shizuku binder died")
+            }
+        }
     }
     private val permissionResult = Shizuku.OnRequestPermissionResultListener { code, result ->
         synchronized(this) {
@@ -106,16 +113,7 @@ class ShizukuConnector(context: Context, private val log: (String) -> Unit) {
         Shizuku.removeBinderDeadListener(binderDead)
         Shizuku.removeRequestPermissionResultListener(permissionResult)
         runCatching { service?.closeCallAudio() }.onFailure { log("shizuku: audio cleanup failed: ${it.message}") }
-        val bound = connection
-        connection = null
-        if (bound != null) {
-            // Clear the client connection synchronously before killing the helper. Otherwise a
-            // rapid restart can reuse the old connection while its death callback is still queued.
-            runCatching { Shizuku.unbindUserService(args, bound, false) }
-                .onFailure { log("shizuku: connection removal failed: ${it.message}") }
-            runCatching { Shizuku.unbindUserService(args, bound, true) }
-                .onFailure { log("shizuku: helper removal failed: ${it.message}") }
-        }
+        clearConnection()
         set(State.STOPPED, null, "takeover off")
     }
 
@@ -157,17 +155,52 @@ class ShizukuConnector(context: Context, private val log: (String) -> Unit) {
     private fun bind() {
         if (!started || state == State.BINDING) return
         if (state == State.CONNECTED && service?.asBinder()?.pingBinder() == true) return
+        val epoch = ++generation
+        clearConnection()
         set(State.BINDING, null, "binding UserService")
+        val timeout = Runnable {
+            synchronized(this) {
+                if (!started || generation != epoch || state != State.BINDING) return@Runnable
+                generation++
+                clearConnection()
+                log("shizuku: UserService did not connect within ${BIND_TIMEOUT_MS}ms; " +
+                    "check ShizukuServiceStarter logs for bootstrap exceptions")
+                set(State.ERROR, null, "UserService connection timed out; check Shizuku logs and retry")
+            }
+        }
+        bindTimeout = timeout
+        main.postDelayed(timeout, BIND_TIMEOUT_MS)
         try {
-            val bound = connection(++generation)
+            val bound = connection(epoch)
             connection = bound
             Shizuku.bindUserService(args, bound)
         } catch (e: RuntimeException) {
+            generation++
+            clearConnection()
             set(State.ERROR, null, "bindUserService failed: ${e.message}")
         }
     }
 
+    private fun clearConnection(removeHelper: Boolean = true) {
+        val bound = connection
+        connection = null
+        if (bound != null) {
+            // Remove the SDK's cached connection before removing the remote helper so retries
+            // cannot reuse a dead connection. Never stop the shared Shizuku server.
+            runCatching { Shizuku.unbindUserService(args, bound, false) }
+                .onFailure { log("shizuku: connection removal failed: ${it.message}") }
+            if (removeHelper) {
+                runCatching { Shizuku.unbindUserService(args, bound, true) }
+                    .onFailure { log("shizuku: helper removal failed: ${it.message}") }
+            }
+        }
+    }
+
     private fun set(s: State, svc: IPrivilegedService?, why: String) {
+        if (s != State.BINDING) {
+            bindTimeout?.let { main.removeCallbacks(it) }
+            bindTimeout = null
+        }
         state = s
         service = svc
         detail = why
@@ -177,5 +210,7 @@ class ShizukuConnector(context: Context, private val log: (String) -> Unit) {
 
     companion object {
         private const val PERMISSION_REQUEST = 4101
+        // Shizuku gives a new UserService 30 seconds to attach its binder.
+        internal const val BIND_TIMEOUT_MS = 35_000L
     }
 }
