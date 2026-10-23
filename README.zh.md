@@ -1,5 +1,7 @@
 # Voice SIP Agent
 
+应用界面已支持简体中文，随 Android 系统语言自动切换；其他语言使用英文。汉化仅涉及显示层，协议与配置取值保持不变。诊断日志及底层错误详情保留原文。验证方式见 [汉化说明](docs/LOCALIZATION.md)。
+
 [English](README.md)
 
 把一台**未 root** 的 Android 11+ 手机变成单线 **蜂窝 ↔ SIP 网关**。手机以 SIP trunk 的方式注册到你的 PBX
