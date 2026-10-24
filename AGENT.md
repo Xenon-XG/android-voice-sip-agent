@@ -121,6 +121,22 @@ Module dependencies: `:voice-api` ← `:sip`, `:gateway` (pure JVM, testable on 
   are not device-verified. Pixel 11 Pro (Android 17, 2026-10-17): redirection-manual gives two-way audio;
   direct gives two-way audio with earpiece mute off, but with the voice-call stream mute the direct downlink
   capture is attenuated (peak <2k vs ~20k) without any read error, so `TapRecovery` does not trigger.
+  Injection write failures (including `ERROR_DEAD_OBJECT`) are handed to the capture thread;
+  only that thread replaces backends. A per-failure daemon wakes blocked capture with stop(), while
+  the writer independently waits up to 5 s for recovery. Each backend gets one full rebuild per call; AUTO then falls forward to
+  DIRECT if redirection fails again or cannot be rebuilt. Explicit audio modes never switch to a
+  different backend. Capture recovery budgets survive same-backend rebuilds, and a failed fallback
+  ends recovery rather than looping. The app-side socket remains open during successful recovery;
+  the partially written frame is dropped. Closing the tap cancels the pending writer, and timeout
+  rejects late recovery completion. Shutdown signals the app socket before waiting for the native
+  audio lock, so a stuck stop/open cannot prevent EOF. Native cleanup itself may finish later.
+  Downlink SEQPACKET sends use a 20 ms socket send timeout and drop whole frames on timeout (`downDropped`),
+  preventing the capture recovery owner from deadlocking against the app's uplink frame writer.
+  `AudioRecoveryDeviceProbeKt` is an opt-in app_process test entry point under privileged test
+  sources, not a JUnit test. It uses synthetic packets and unopened audio taps to check congestion,
+  packet boundaries, peer closure, and shutdown before a held native-audio monitor. It does not
+  dial, record, or open audio devices. Those checks passed on Redmi Note 13 Pro+ / Android 16;
+  actual dead-track rebuild/fallback during cellular calls still requires device validation.
   Diagnostics: the 5 s `levels` line adds per-window max frame gaps (`downGap5s`, `upGap5s`, `upWrite5s`) and
   tap stats add totals (`GapStats`); pjsua2 logs `call N rtp rx[...] tx[...] jbuf[...] fromSip/toSip[...]`
   every 5 s and a final line when the stream is still available. Counters only, never audio.

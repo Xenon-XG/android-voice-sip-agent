@@ -19,13 +19,17 @@ import android.util.Log
 import io.github.sparkcyf.voicesipagent.privileged.AudioMethod
 import io.github.sparkcyf.voicesipagent.voice.PcmFormat
 import java.io.FileDescriptor
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Shell-side call audio tap: downlink capture -> socket, socket -> uplink injection.
  * PCM stays in memory; only counters are logged.
  *
  * Capture failures are recovered in place where [TapRecovery] allows it (direct record re-create,
- * AUTO backend fallback), so the app's socket and the call survive them.
+ * AUTO backend fallback), so the app's socket and the call survive them. Injection failures are
+ * handed to that same capture thread for bounded backend rebuild/fallback; the writer waits rather
+ * than closing the socket or rebuilding concurrently.
  */
 internal class CallAudioTap(
     private val ctx: Context,
@@ -52,9 +56,12 @@ internal class CallAudioTap(
     @Volatile private lateinit var record: AudioRecord
     @Volatile private lateinit var track: AudioTrack
     private lateinit var local: FileDescriptor
+    private lateinit var downlinkWriter: BoundedPcmWriter
     private lateinit var recovery: TapRecovery
     @Volatile private var running = false
     @Volatile private var switching = false
+    private val injectionRecovery = AtomicReference<AudioRecoveryRequest<AudioTrack>?>(null)
+    private val stopSignalled = AtomicBoolean()
     val isOpen: Boolean get() = running
     private var closed = false
     private var backendFrames = 0L
@@ -92,6 +99,7 @@ internal class CallAudioTap(
             openAudio()
             local = FileDescriptor()
             Os.socketpair(OsConstants.AF_UNIX, OsConstants.SOCK_SEQPACKET, 0, local, app)
+            downlinkWriter = BoundedPcmWriter(local)
             val pfd = ParcelFileDescriptor.dup(app)
             result = pfd
             Os.close(app)
@@ -293,7 +301,22 @@ internal class CallAudioTap(
         try {
             var offset = 0
             while (running) {
-                val n = record.read(buf, offset, frameBytes - offset, AudioRecord.READ_BLOCKING)
+                injectionRecovery.get()?.let { request ->
+                    offset = 0
+                    val recovered = recoverInjection(request)
+                    request.complete(recovered)
+                    injectionRecovery.compareAndSet(request, null)
+                    if (!recovered || request.await(0) != AudioRecoveryRequest.Result.RECOVERED) return
+                }
+                if (!running) break
+                val n = try {
+                    record.read(buf, offset, frameBytes - offset, AudioRecord.READ_BLOCKING)
+                } catch (_: IllegalStateException) {
+                    AudioRecord.ERROR_INVALID_OPERATION
+                }
+                // The writer stops the record to wake this read. Handle its request before treating
+                // the stopped read as a separate capture failure or forwarding a partial old frame.
+                if (injectionRecovery.get() != null) { offset = 0; continue }
                 if (n <= 0) {
                     if (!running) break
                     offset = 0
@@ -308,7 +331,9 @@ internal class CallAudioTap(
                 if (p > downPeak) downPeak = p
                 if (p > VOICE_THRESHOLD) downVoiced++
                 if (p > windowDown) windowDown = p
-                check(Os.write(local, buf, 0, frameBytes) == frameBytes) { "short downlink packet write" }
+                // Bound the recovery owner's wait behind the app's synchronous uplink writer.
+                // SEQPACKET sends are atomic: drop a complete frame if the peer falls behind.
+                downlinkWriter.write(buf)
                 if (++downFrames % 250 == 0L) {
                     // Every 5 s: levels only, never audio content.
                     Log.i(TAG, "levels t=${downFrames / 50}s downPeak5s=$windowDown upPeak5s=$windowUp up=$upFrames" +
@@ -347,16 +372,22 @@ internal class CallAudioTap(
                 var off = 0
                 while (off < n && running) {
                     val t = track
-                    val w = t.write(buf, off, n - off, AudioTrack.WRITE_BLOCKING)
+                    val w = try {
+                        t.write(buf, off, n - off, AudioTrack.WRITE_BLOCKING)
+                    } catch (_: IllegalStateException) {
+                        AudioTrack.ERROR_INVALID_OPERATION
+                    }
                     if (w <= 0) {
                         // The capture thread is replacing the backend: drop the rest of this frame.
                         if (switching || t !== track) break
-                        error = "track write $w at $rate Hz"; running = false; break
+                        if (!requestInjectionRecovery(t, "track write $w at $rate Hz")) running = false
+                        // Drop the remainder of this frame; never replay a partially written frame.
+                        break
                     }
                     off += w
                 }
                 upWrite.record((SystemClock.elapsedRealtimeNanos() - arrived) / 1_000_000)
-                upFrames++
+                if (off == n) upFrames++
             }
         } catch (e: ErrnoException) {
             if (running && e.errno != OsConstants.ECONNRESET) error = "up: ${e.message}"
@@ -365,6 +396,57 @@ internal class CallAudioTap(
         } finally {
             close()
         }
+    }
+
+    /** The writer never rebuilds audio objects. Stop capture to wake its sole recovery owner. */
+    private fun requestInjectionRecovery(failedTrack: AudioTrack, why: String): Boolean {
+        if (!running) return false
+        // A capture-triggered fallback may already have replaced this failed object.
+        if (switching || failedTrack !== track) return true
+        val request = AudioRecoveryRequest(failedTrack, why)
+        injectionRecovery.set(request)
+        if (!running) request.complete(false)
+        // stop() is a native call too: do not let it postpone the writer's timeout. This bounded
+        // per-failure waker only stops the old record while it still belongs to this request.
+        Thread({
+            synchronized(this) {
+                if (running && request.isPending && injectionRecovery.get() === request && failedTrack === track) {
+                    runCatching { record.stop() }
+                }
+            }
+        }, "tap-recovery-wake").apply { isDaemon = true; start() }
+        note("injection recovery requested: $why")
+        return when (request.await(INJECTION_RECOVERY_TIMEOUT_MS)) {
+            AudioRecoveryRequest.Result.RECOVERED -> running
+            AudioRecoveryRequest.Result.FAILED -> false
+            AudioRecoveryRequest.Result.TIMED_OUT -> {
+                error = "$why; injection recovery timed out after ${INJECTION_RECOVERY_TIMEOUT_MS}ms"
+                false
+            }
+        }
+    }
+
+    /** Runs only on the capture thread; keeps the existing socket pair throughout recovery. */
+    private fun recoverInjection(request: AudioRecoveryRequest<AudioTrack>): Boolean {
+        if (!running || !request.isPending) return false
+        if (request.failedTrack !== track) return true
+        var action = recovery.onInjectionFailure()
+        while (running && request.isPending) {
+            when (val attempt = action) {
+                is TapRecovery.Action.RecreateBackend -> {
+                    if (switchBackend(attempt.backend, request.reason, request)) return true
+                    if (!running || !request.isPending) return false
+                    note("injection rebuild failed: ${error.orEmpty()}")
+                    action = recovery.onInjectionFailure()
+                }
+                is TapRecovery.Action.Switch -> return switchBackend(attempt.backend, request.reason, request)
+                else -> {
+                    error = "${request.reason}; injection recovery exhausted${error?.let { "; $it" }.orEmpty()}"
+                    return false
+                }
+            }
+        }
+        return false
     }
 
     /** Runs on the capture thread. Returns true when capture continues. */
@@ -378,6 +460,7 @@ internal class CallAudioTap(
     private fun perform(action: TapRecovery.Action, why: String): Boolean = when (action) {
         TapRecovery.Action.Close -> { error = why; false }
         TapRecovery.Action.RecreateRecord -> recreateRecord(why)
+        is TapRecovery.Action.RecreateBackend -> switchBackend(action.backend, why)
         is TapRecovery.Action.Switch -> switchBackend(action.backend, why)
     }
 
@@ -400,11 +483,18 @@ internal class CallAudioTap(
         return ok
     }
 
-    private fun switchBackend(target: TapBackend, why: String): Boolean {
+    private fun switchBackend(
+        target: TapBackend,
+        why: String,
+        request: AudioRecoveryRequest<AudioTrack>? = null,
+    ): Boolean {
+        if (!running || request?.isPending == false) return false
         runCatching { hooks.beforeBackendSwitch() }.onFailure { Log.w(TAG, "output restore before switch failed: $it") }
         val from = usedMethod
+        // Allow the restored audio mode/route to settle before rebuilding native objects.
+        SystemClock.sleep(RECOVERY_SETTLE_MS)
         val ok = synchronized(this) {
-            if (closed) return false
+            if (closed || !running || request?.isPending == false) return false
             switching = true
             try {
                 runCatching { record.stop() }
@@ -415,6 +505,10 @@ internal class CallAudioTap(
                 recovery.opened(target)
                 startRecord()
                 startTrack()
+                if (!running || request?.isPending == false) {
+                    releaseAudio()
+                    return false
+                }
                 backendFrames = 0
                 backendPeak = 0
                 true
@@ -426,7 +520,9 @@ internal class CallAudioTap(
             }
         }
         if (!ok) return false
-        note("switched $from -> $usedMethod after $why")
+        error = null
+        val change = if (from == usedMethod) "re-created $usedMethod" else "switched $from -> $usedMethod"
+        note("$change after $why")
         runCatching { hooks.afterBackendSwitch(usedMethod) }.onFailure { Log.w(TAG, "output mute after switch failed: $it") }
         return true
     }
@@ -436,26 +532,32 @@ internal class CallAudioTap(
         Log.w(TAG, "recovery: $event")
     }
 
-    @Synchronized
     fun close() {
-        if (closed) return
-        closed = true
         running = false
-        try { Os.shutdown(local, OsConstants.SHUT_RDWR) } catch (_: Throwable) {}
-        try { record.stop() } catch (_: Throwable) {}
-        try { track.pause(); track.flush(); track.stop() } catch (_: Throwable) {}
-        try { record.release() } catch (_: Throwable) {}
-        try { track.release() } catch (_: Throwable) {}
-        try { Os.close(local) } catch (_: Throwable) {}
-        downThread = null
-        upThread = null
-        modeThread = null
+        // Wake the app and writer before taking the native-audio monitor. Even a stuck stop/open
+        // cannot keep the app's socket alive after hangup or the injection recovery deadline.
+        if (stopSignalled.compareAndSet(false, true)) {
+            injectionRecovery.getAndSet(null)?.complete(false)
+            try { Os.shutdown(local, OsConstants.SHUT_RDWR) } catch (_: Throwable) {}
+        }
+        synchronized(this) {
+            if (closed) return
+            closed = true
+            try { record.stop() } catch (_: Throwable) {}
+            try { track.pause(); track.flush(); track.stop() } catch (_: Throwable) {}
+            try { record.release() } catch (_: Throwable) {}
+            try { track.release() } catch (_: Throwable) {}
+            try { Os.close(local) } catch (_: Throwable) {}
+            downThread = null
+            upThread = null
+            modeThread = null
+        }
         Log.i(TAG, "tap closed ${stats()}")
         runCatching(hooks::onClosed).onFailure { Log.w(TAG, "onClosed failed: $it") }
     }
 
     fun stats() = "method=$usedMethod rate=$rate frameBytes=$frameBytes down=$downFrames up=$upFrames downPeak=$downPeak upPeak=$upPeak " +
-        "downVoiced=$downVoiced upVoiced=$upVoiced" +
+        "downVoiced=$downVoiced upVoiced=$upVoiced downDropped=${if (::downlinkWriter.isInitialized) downlinkWriter.droppedFrames else 0}" +
         " backendFailures=$backendFailures preferred=${if (::track.isInitialized) runCatching { track.preferredDevice?.type }.getOrNull() else null}" +
         " routed=${if (::track.isInitialized) runCatching { track.routedDevice?.type }.getOrNull() else null}" +
         " downGap[$downGap] upGap[$upGap] upWrite[$upWrite]" +
@@ -487,6 +589,8 @@ internal class CallAudioTap(
         private const val VOICE_THRESHOLD = 300
         /** Lets AudioService apply an unmute before the record is rebuilt. */
         private const val RECOVERY_SETTLE_MS = 200L
+        /** Bound the writer's wait even if capture never wakes after stop(). */
+        private const val INJECTION_RECOVERY_TIMEOUT_MS = 5_000L
         /** Hidden AudioAttributes.USAGE_CALL_ASSISTANT, as used by getCallUplinkInjectionAudioTrack. */
         private const val USAGE_CALL_ASSISTANT = 17
     }

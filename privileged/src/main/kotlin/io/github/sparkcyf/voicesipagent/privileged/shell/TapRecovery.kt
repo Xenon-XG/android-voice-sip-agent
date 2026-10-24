@@ -13,6 +13,8 @@ internal class TapRecovery(method: Int) {
     sealed interface Action {
         /** Rebuild only the capture record of the current backend, at the same rate. */
         data object RecreateRecord : Action
+        /** Rebuild both record and track once after an injection failure. */
+        data class RecreateBackend(val backend: TapBackend) : Action
         /** Release the current backend and open [backend] mid-call. */
         data class Switch(val backend: TapBackend) : Action
         data object Close : Action
@@ -30,17 +32,20 @@ internal class TapRecovery(method: Int) {
     private var muteRecoveryUsed = false
     private var transientRecoveryUsed = false
     private var zeroCheckDone = false
+    private val injectionRebuilt = mutableSetOf<TapBackend>()
 
     val backend: TapBackend? get() = plan.getOrNull(current)
 
     /** Records which plan entry actually opened, so fallbacks only move forward. */
     fun opened(backend: TapBackend) {
         val index = plan.indexOf(backend)
-        require(index >= 0) { "$backend is not in $plan" }
+        require(index >= 0 && index >= current) { "$backend cannot follow ${this.backend} in $plan" }
+        if (index != current) {
+            // A same-backend injection rebuild must not replenish capture recovery budgets.
+            muteRecoveryUsed = false
+            transientRecoveryUsed = false
+        }
         current = index
-        // Each backend gets its own record recoveries and downlink check.
-        muteRecoveryUsed = false
-        transientRecoveryUsed = false
         zeroCheckDone = false
     }
 
@@ -59,6 +64,17 @@ internal class TapRecovery(method: Int) {
                 return Action.RecreateRecord
             }
         }
+        return next()?.let(Action::Switch) ?: Action.Close
+    }
+
+    /**
+     * A write returned <= 0. Recreate the current backend once, then move forward in AUTO.
+     * Consume the budget before attempting construction: failed opens and repeated dead objects
+     * cannot reset it. Explicit modes never silently change the selected backend.
+     */
+    fun onInjectionFailure(): Action {
+        val active = backend ?: return Action.Close
+        if (injectionRebuilt.add(active)) return Action.RecreateBackend(active)
         return next()?.let(Action::Switch) ?: Action.Close
     }
 
