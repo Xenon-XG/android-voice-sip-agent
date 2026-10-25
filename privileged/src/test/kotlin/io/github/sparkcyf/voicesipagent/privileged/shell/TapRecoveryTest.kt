@@ -45,27 +45,28 @@ class TapRecoveryTest {
     @Test fun explicitRedirectionNeverFallsBack() {
         val r = TapRecovery(AudioMethod.OFFICIAL).apply { opened(TapBackend.REDIRECTION) }
         assertEquals(Action.Close, r.onCaptureFailure(muteWithdrawn = false))
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 0))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES) { assertNull(r.onDownlinkFrame(0)) }
     }
 
     @Test fun digitalZeroRedirectionDownlinkSwitchesToDirectAfterThreeSeconds() {
         val r = TapRecovery(AudioMethod.AUTO).apply { opened(TapBackend.REDIRECTION) }
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES - 1, 0))
-        assertEquals(Action.Switch(TapBackend.DIRECT), r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 0))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES - 1) { assertNull(r.onDownlinkFrame(0)) }
+        assertEquals(Action.Switch(TapBackend.DIRECT), r.onDownlinkFrame(0))
         r.opened(TapBackend.DIRECT)
         // DIRECT is last in AUTO: a silent downlink there is left alone.
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 0))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES) { assertNull(r.onDownlinkFrame(0)) }
     }
 
-    @Test fun anyDownlinkSignalPassesTheCheckOnce() {
+    @Test fun establishedDownlinkSignalAllowsLaterSpeechPauses() {
         val r = TapRecovery(AudioMethod.AUTO).apply { opened(TapBackend.REDIRECTION) }
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 1))
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES + 500, 0))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES) { assertNull(r.onDownlinkFrame(500)) }
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES * 20) { assertNull(r.onDownlinkFrame(0)) }
+        assertTrue(r.downlinkStatus.startsWith("signal observed:"))
     }
 
     @Test fun directOpenedByAutoAfterRedirectionFailedAtOpenHasNoFurtherFallback() {
         val r = TapRecovery(AudioMethod.AUTO).apply { opened(TapBackend.DIRECT) }
         assertEquals(TapBackend.DIRECT, r.backend)
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 0))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES) { assertNull(r.onDownlinkFrame(0)) }
     }
 }

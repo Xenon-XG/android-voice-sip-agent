@@ -113,8 +113,15 @@ Module dependencies: `:voice-api` ← `:sip`, `:gateway` (pure JVM, testable on 
   Capture failures are recovered inside the tap, keeping the app's socket and the call (`TapRecovery`):
   a direct record read <= 0 with our voice-call stream mute applied withdraws that mute, refuses it for
   the rest of the call and re-creates the record once; any other direct read <= 0 gets one more re-create.
-  AUTO also switches mid-call to the next backend when redirection capture fails or its downlink is digital
-  zero (peak 0) for the first 3 s. The AUTO order is the single constant `TapRecovery.AUTO_ORDER`
+  AUTO also switches mid-call when redirection capture fails. Downlink validation uses independent
+  150-frame windows, not a cumulative peak. Before signal is established, a digital-zero startup
+  window can switch to DIRECT; nonzero low-level audio alone does not. Initial observation ends
+  after at most four windows. A same-backend rebuild following an injection fault instead requires
+  two near-silent windows before fallback (about 6 s of captured audio). At least five frames above
+  peak 300 establish signal and end observation; an isolated spike or tiny DC offset cannot.
+  Established calls are not switched for speech pauses. These levels are a heuristic, not proof of
+  audible end-to-end media. Log `downlink validation` and final `downlinkValidation` explain decisions.
+  The AUTO order is the single constant `TapRecovery.AUTO_ORDER`
   (redirection first; direct-first is pending tests of direct on the Pixel and moto). A mute failure within
   3 s of the mute is remembered per build fingerprint by the app, which then blocks direct stream mute
   (`setDirectOutputMuteBlocked`); changing the earpiece-mute setting clears it. The recovery paths themselves
@@ -136,7 +143,8 @@ Module dependencies: `:voice-api` ← `:sip`, `:gateway` (pure JVM, testable on 
   sources, not a JUnit test. It uses synthetic packets and unopened audio taps to check congestion,
   packet boundaries, peer closure, and shutdown before a held native-audio monitor. It does not
   dial, record, or open audio devices. Those checks passed on Redmi Note 13 Pro+ / Android 16;
-  actual dead-track rebuild/fallback during cellular calls still requires device validation.
+  dead-track rebuild has also kept a Redmi call connected, but it left near-silent capture until
+  this post-rebuild validation was added. The new validation-triggered switch requires call testing.
   Diagnostics: the 5 s `levels` line adds per-window max frame gaps (`downGap5s`, `upGap5s`, `upWrite5s`) and
   tap stats add totals (`GapStats`); pjsua2 logs `call N rtp rx[...] tx[...] jbuf[...] fromSip/toSip[...]`
   every 5 s and a final line when the stream is still available. Counters only, never audio.

@@ -64,8 +64,6 @@ internal class CallAudioTap(
     private val stopSignalled = AtomicBoolean()
     val isOpen: Boolean get() = running
     private var closed = false
-    private var backendFrames = 0L
-    private var backendPeak = 0
     private val recoveries = ArrayList<String>()
     val recoveryDetail: String get() = synchronized(recoveries) { recoveries.joinToString("; ") }
     private var downThread: Thread? = null
@@ -342,10 +340,12 @@ internal class CallAudioTap(
                     windowDown = 0
                     windowUp = 0
                 }
-                backendFrames++
-                if (p > backendPeak) backendPeak = p
-                val action = recovery.onDownlinkFrames(backendFrames, backendPeak)
-                if (action != null && !perform(action, "downlink digital zero for ${backendFrames / 50}s")) break
+                val beforeValidation = recovery.downlinkStatus
+                val action = recovery.onDownlinkFrame(p)
+                if (recovery.downlinkStatus != beforeValidation) {
+                    Log.i(TAG, "downlink validation: ${recovery.downlinkStatus}")
+                }
+                if (action != null && !perform(action, recovery.downlinkStatus)) break
             }
         } catch (e: ErrnoException) {
             if (running && e.errno != OsConstants.EPIPE && e.errno != OsConstants.ECONNRESET) error = "down: ${e.message}"
@@ -509,8 +509,6 @@ internal class CallAudioTap(
                     releaseAudio()
                     return false
                 }
-                backendFrames = 0
-                backendPeak = 0
                 true
             } catch (t: Throwable) {
                 error = "$why; switch to ${label(target)} failed: ${describe(t)}"
@@ -561,6 +559,7 @@ internal class CallAudioTap(
         " backendFailures=$backendFailures preferred=${if (::track.isInitialized) runCatching { track.preferredDevice?.type }.getOrNull() else null}" +
         " routed=${if (::track.isInitialized) runCatching { track.routedDevice?.type }.getOrNull() else null}" +
         " downGap[$downGap] upGap[$upGap] upWrite[$upWrite]" +
+        " downlinkValidation=${if (::recovery.isInitialized) recovery.downlinkStatus else "not opened"}" +
         recoveryDetail.let { if (it.isEmpty()) "" else " recoveries=[$it]" } +
         (error?.let { " error=$it" } ?: "")
 
@@ -586,7 +585,7 @@ internal class CallAudioTap(
 
     companion object {
         private const val TAG = "VsaTap"
-        private const val VOICE_THRESHOLD = 300
+        private const val VOICE_THRESHOLD = TapRecovery.SIGNAL_THRESHOLD
         /** Lets AudioService apply an unmute before the record is rebuilt. */
         private const val RECOVERY_SETTLE_MS = 200L
         /** Bound the writer's wait even if capture never wakes after stop(). */

@@ -76,10 +76,13 @@ class TapInjectionRecoveryTest {
 
     @Test fun silenceFallbackStillWorksAfterInjectionRebuild() {
         val r = TapRecovery(AudioMethod.AUTO).apply { opened(TapBackend.REDIRECTION) }
-        assertNull(r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 100))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES) { assertNull(r.onDownlinkFrame(100)) }
         assertEquals(Action.RecreateBackend(TapBackend.REDIRECTION), r.onInjectionFailure())
         r.opened(TapBackend.REDIRECTION)
-        assertEquals(Action.Switch(TapBackend.DIRECT), r.onDownlinkFrames(TapRecovery.ZERO_DOWNLINK_FRAMES, 0))
+        repeat(TapRecovery.DOWNLINK_WINDOW_FRAMES * TapRecovery.RECOVERY_QUIET_WINDOWS - 1) {
+            assertNull(r.onDownlinkFrame(0))
+        }
+        assertEquals(Action.Switch(TapBackend.DIRECT), r.onDownlinkFrame(0))
         r.opened(TapBackend.DIRECT)
         assertEquals(Action.RecreateBackend(TapBackend.DIRECT), r.onInjectionFailure())
     }

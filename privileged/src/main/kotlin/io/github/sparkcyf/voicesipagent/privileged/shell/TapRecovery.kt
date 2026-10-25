@@ -31,7 +31,14 @@ internal class TapRecovery(method: Int) {
     private var current = -1
     private var muteRecoveryUsed = false
     private var transientRecoveryUsed = false
-    private var zeroCheckDone = false
+    private var observingDownlink = false
+    private var afterInjectionRebuild = false
+    private var windowFrames = 0
+    private var windowPeak = 0
+    private var windowSignalFrames = 0
+    private var observationWindows = 0
+    private var quietWindows = 0
+    @Volatile var downlinkStatus = "not opened"; private set
     private val injectionRebuilt = mutableSetOf<TapBackend>()
 
     val backend: TapBackend? get() = plan.getOrNull(current)
@@ -45,8 +52,19 @@ internal class TapRecovery(method: Int) {
             muteRecoveryUsed = false
             transientRecoveryUsed = false
         }
+        afterInjectionRebuild = index == current && backend in injectionRebuilt
         current = index
-        zeroCheckDone = false
+        observingDownlink = backend == TapBackend.REDIRECTION && next() != null
+        windowFrames = 0
+        windowPeak = 0
+        windowSignalFrames = 0
+        observationWindows = 0
+        quietWindows = 0
+        downlinkStatus = when {
+            !observingDownlink -> "not monitored: no automatic downlink fallback for $backend"
+            afterInjectionRebuild -> "observing downlink after injection rebuild"
+            else -> "observing initial downlink"
+        }
     }
 
     /**
@@ -79,14 +97,48 @@ internal class TapRecovery(method: Int) {
     }
 
     /**
-     * Called for each captured frame with the current backend's frame count and peak. Returns a
-     * switch when the downlink stayed digital zero for [ZERO_DOWNLINK_FRAMES]; checked once.
+     * Called once per complete 20 ms capture frame, never with a cumulative peak. Observe
+     * non-overlapping windows until signal is established or the bounded startup check ends.
+     * After a known injection fault/rebuild, two near-silent windows warrant AUTO fallback.
+     * Without that fault, retain the digital-zero startup fallback but do not treat low-level
+     * audio alone as failure. Established calls are not switched for ordinary speech pauses.
+     * These levels are a recovery heuristic, not proof that either remote party can hear audio.
      */
-    fun onDownlinkFrames(frames: Long, peak: Int): Action? {
-        if (zeroCheckDone || frames < ZERO_DOWNLINK_FRAMES) return null
-        zeroCheckDone = true
-        if (peak != 0) return null
-        return next()?.let(Action::Switch)
+    fun onDownlinkFrame(peak: Int): Action? {
+        if (!observingDownlink) return null
+        windowFrames++
+        windowPeak = maxOf(windowPeak, peak)
+        if (peak > SIGNAL_THRESHOLD) windowSignalFrames++
+        if (windowFrames < DOWNLINK_WINDOW_FRAMES) return null
+
+        observationWindows++
+        val summary = "window=$observationWindows peak=$windowPeak signalFrames=$windowSignalFrames/$windowFrames"
+        val signalObserved = windowSignalFrames >= MIN_SIGNAL_FRAMES
+        val digitalZero = windowPeak == 0
+        windowFrames = 0
+        windowPeak = 0
+        windowSignalFrames = 0
+
+        if (signalObserved) {
+            observingDownlink = false
+            downlinkStatus = "signal observed: $summary"
+            return null
+        }
+        if (afterInjectionRebuild) quietWindows++
+        val switch = if (afterInjectionRebuild) quietWindows >= RECOVERY_QUIET_WINDOWS else digitalZero
+        if (switch) {
+            observingDownlink = false
+            val reason = if (afterInjectionRebuild) "near-silent downlink after injection rebuild" else "digital-zero startup downlink"
+            downlinkStatus = "$reason: $summary quietWindows=$quietWindows"
+            return next()?.let(Action::Switch)
+        }
+        if (observationWindows >= MAX_STARTUP_WINDOWS) {
+            observingDownlink = false
+            downlinkStatus = "inconclusive startup downlink; no switch: $summary"
+        } else {
+            downlinkStatus = "observing downlink: $summary quietWindows=$quietWindows"
+        }
+        return null
     }
 
     private fun next(): TapBackend? = plan.getOrNull(current + 1)
@@ -99,7 +151,15 @@ internal class TapRecovery(method: Int) {
          */
         val AUTO_ORDER = listOf(TapBackend.REDIRECTION, TapBackend.DIRECT)
 
-        /** 3 s of 20 ms frames; a live cellular downlink carries at least comfort noise by then. */
-        const val ZERO_DOWNLINK_FRAMES = 150L
+        /** Match the existing diagnostic signal threshold; do not count tiny DC offsets as speech. */
+        const val SIGNAL_THRESHOLD = 300
+        /** Three seconds of captured audio, independent of 8/16 kHz sample rate. */
+        const val DOWNLINK_WINDOW_FRAMES = 150
+        /** Ignore an isolated click: at least 100 ms of above-threshold frames in a window. */
+        const val MIN_SIGNAL_FRAMES = 5
+        /** Six seconds of near-silent capture after a known fault, not a single silent window. */
+        const val RECOVERY_QUIET_WINDOWS = 2
+        /** Bound initial observation when low-level audio cannot distinguish silence from a fault. */
+        const val MAX_STARTUP_WINDOWS = 4
     }
 }
