@@ -110,6 +110,13 @@ class SipUserAgent(
             // Completion means local release, independently of an unregister reply or status listener.
             try {
                 executor.execute {
+                    // Publish the snapshot before completion callbacks can inspect readiness.
+                    // Listener delivery stays after socket release: a blocked listener must not
+                    // prevent callers from observing local release or binding a replacement.
+                    val stoppedStatus = EndpointStatus(false, "stopped")
+                    val notifyStopped = status != stoppedStatus
+                    started = false
+                    status = stoppedStatus
                     try {
                         if (::transport.isInitialized) transport.close()
                         released.complete(Unit)
@@ -117,9 +124,10 @@ class SipUserAgent(
                         log.warn("SIP socket release failed", t)
                         released.completeExceptionally(t)
                     } finally {
-                        started = false
-                        runCatching { setStatus(false, "stopped") }
-                            .onFailure { log.warn("SIP stopped status notification failed", it) }
+                        if (notifyStopped) {
+                            runCatching { statusListeners.forEach { it.onStatusChanged(this, stoppedStatus) } }
+                                .onFailure { log.warn("SIP stopped status notification failed", it) }
+                        }
                     }
                 }
             } catch (t: Throwable) {

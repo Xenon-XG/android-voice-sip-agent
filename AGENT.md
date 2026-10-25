@@ -154,7 +154,8 @@ Module dependencies: `:voice-api` ← `:sip`, `:gateway` (pure JVM, testable on 
   `X-VSA-Dial` header, falling back to the Request-URI user part. PCMU/PCMA + telephone-event(101) only.
   `stop()` waits for best-effort unregister, then up to 1 s for queued socket closure. Its returned future
   reports local socket release, including cleanup that finishes after the bounded wait; repeated stops
-  return the same completion. A PBX reply is not required to release the socket.
+  return the same completion. The stopped readiness snapshot is published before completing that future;
+  listener notification remains after completion so a blocked listener cannot delay socket handoff. A PBX reply is not required to release the socket.
 - **SIP (`:sip-pjsua2`)**: `PjsipEndpoint` implements `CallEndpoint` with the same trunk semantics as `:sip`.
   - pjsua is a process singleton: ordinary endpoint restarts reuse `PjsuaLib`; restarting the endpoint only
     adds/removes accounts, transports (keyed by type + port) are kept and reused. Every pjsua call and SIP callback

@@ -146,4 +146,77 @@ class SipShutdownTest {
             }
         }
     }
+
+    @Test fun releaseCompletionCallbacksObserveStoppedState() {
+        DatagramSocket(0).use { peer ->
+            val ua = registerForShutdownTest(peer)
+            val entered = CountDownLatch(1)
+            val releaseWorker = CountDownLatch(1)
+            try {
+                ua.post { entered.countDown(); check(releaseWorker.await(5, TimeUnit.SECONDS)) }
+                assertTrue(entered.await(2, TimeUnit.SECONDS))
+                val released = ua.stop(timeoutMs = 0)
+                assertFalse(released.isDone)
+                // This callback executes inline in complete(), before the cleanup finally block.
+                val snapshotAtCompletion = released.thenApply { ua.status }
+                releaseWorker.countDown()
+                val snapshot = snapshotAtCompletion.get(3, TimeUnit.SECONDS)
+                assertFalse("Socket release was published before stopped readiness", snapshot.ready)
+                assertEquals("stopped", snapshot.detail)
+            } finally {
+                releaseWorker.countDown()
+                ua.stop(timeoutMs = 0).get(3, TimeUnit.SECONDS)
+            }
+        }
+    }
+
+    @Test fun blockedStoppedListenerDoesNotDelaySocketRelease() {
+        DatagramSocket(0).use { peer ->
+            val ua = registerForShutdownTest(peer)
+            val entered = CountDownLatch(1)
+            val releaseListener = CountDownLatch(1)
+            ua.addStatusListener { _, state ->
+                if (state.detail == "stopped") {
+                    entered.countDown()
+                    check(releaseListener.await(5, TimeUnit.SECONDS))
+                }
+            }
+            val port = ua.transport.localPort
+            try {
+                val released = ua.stop(timeoutMs = 0)
+                released.get(2, TimeUnit.SECONDS)
+                assertTrue(entered.await(2, TimeUnit.SECONDS))
+                assertFalse(ua.status.ready)
+                DatagramSocket(port).use { assertEquals(port, it.localPort) }
+                assertEquals(1L, releaseListener.count)
+            } finally {
+                releaseListener.countDown()
+                ua.stop(timeoutMs = 0).get(3, TimeUnit.SECONDS)
+            }
+        }
+    }
+
+    private fun registerForShutdownTest(peer: DatagramSocket): SipUserAgent {
+        peer.soTimeout = 2000
+        val ua = SipUserAgent(SipConfig(SipAccount("127.0.0.1", peer.localPort, "test", "test"), localPort = 0),
+            object : SipLog {
+                override fun info(msg: String) {}
+                override fun warn(msg: String, t: Throwable?) {}
+            })
+        val ready = CountDownLatch(1)
+        ua.addStatusListener { _, state -> if (state.ready) ready.countDown() }
+        try {
+            ua.start()
+            val packet = DatagramPacket(ByteArray(4096), 4096)
+            peer.receive(packet)
+            val request = SipParser.parse(packet.data, packet.length) as SipRequest
+            val response = ua.buildResponse(request, 200).apply { headers.set("Expires", "60") }.encode()
+            peer.send(DatagramPacket(response, response.size, packet.socketAddress))
+            assertTrue(ready.await(2, TimeUnit.SECONDS))
+            return ua
+        } catch (t: Throwable) {
+            ua.stop(timeoutMs = 0)
+            throw t
+        }
+    }
 }
