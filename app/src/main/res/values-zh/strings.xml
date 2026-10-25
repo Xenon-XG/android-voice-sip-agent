@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_audio_mode_controls">"音频接口模式"</string>
+    <string name="ui_audio_applied_policy">"已生效策略：%1$s"</string>
+    <string name="ui_audio_policy_auto">"自动切换"</string>
+    <string name="ui_audio_policy_direct">"固定 Direct"</string>
+    <string name="ui_audio_policy_redirection">"固定重定向"</string>
+    <string name="ui_audio_live_backend">"当前接口：%1$s"</string>
+    <string name="ui_audio_backend_connecting">"当前接口：正在建立音频通道"</string>
+    <string name="ui_audio_backend_idle">"当前接口：未启用，等待通话"</string>
+    <string name="ui_audio_backend_unavailable">"当前接口：状态不可用"</string>
+    <string name="ui_audio_previous_backend">"上次使用接口：%1$s"</string>
+    <string name="ui_audio_select_policy">"选择策略"</string>
+    <string name="ui_audio_button_auto">"自动"</string>
+    <string name="ui_audio_button_direct">"Direct"</string>
+    <string name="ui_audio_button_redirection">"重定向"</string>
+    <string name="ui_audio_pending_policy">"待生效策略：%1$s；当前通话结束后应用。"</string>
+    <string name="ui_audio_auto_description">"优先使用通话重定向；初始化或通话音频异常时自动尝试 Direct。"</string>
+    <string name="ui_audio_direct_description">"只使用 Direct 蜂窝音频接口，不自动切换到重定向。"</string>
+    <string name="ui_audio_redirection_description">"只使用通话重定向接口，不自动切换到 Direct。"</string>
+    <string name="ui_audio_selection_saved">"选择后自动保存；通话中修改将在结束后生效。"</string>
+    <string name="ui_audio_not_network_mode">"这里控制蜂窝音频接口，不改变 SIP、VPN 或代理线路。"</string>
+    <string name="ui_audio_redirection_unsupported">"此 Android 版本不支持通话重定向。"</string>
     <string name="app_name">"语音 SIP 网关"</string>
     <string name="ui_takeover">"通话接管"</string>
     <string name="ui_take_over_calls">"接管通话"</string>

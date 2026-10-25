@@ -145,6 +145,10 @@ private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modif
                 Text(context.getString(R.string.ui_changes_pending_until_calls_end), style = MaterialTheme.typography.bodySmall)
             }
         }
+        AudioModeSection(
+            audioModeControlState(cur.audioMethod, pendingSettings?.audioMethod, callAudio,
+                h.calls.count > 0 || h.session != null),
+        ) { method -> rt.applySettings { current -> current.copy(audioMethod = method) } }
         Section(context.getString(R.string.ui_health)) {
             val p = h.privileged
             val actionsEnabled = h.gatewayRunning && cur.takeover && !h.dialerChangeRunning
@@ -259,20 +263,6 @@ private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modif
                 OutlinedButton(onClick = chooseDialer) { Text(context.getString(R.string.ui_choose_dialer_in_settings)) }
                 Text(context.getString(R.string.ui_manual_dialer_selection_leaves_takeover_unchanged_selecting_default_di),
                     style = MaterialTheme.typography.bodySmall)
-                val preferredAudioMethod = pendingSettings?.audioMethod ?: cur.audioMethod
-                Choice(context.getString(R.string.ui_cellular_audio), listOf(AudioMethod.AUTO, AudioMethod.LEGACY, AudioMethod.OFFICIAL), preferredAudioMethod,
-                    { when (it) { AudioMethod.AUTO -> context.getString(R.string.ui_automatic); AudioMethod.LEGACY -> context.getString(R.string.ui_direct_telephony); else -> context.getString(R.string.ui_cellular_redirection) } },
-                    enabled = { it != AudioMethod.OFFICIAL || Build.VERSION.SDK_INT >= 33 }) {
-                    rt.applySettings { current -> current.copy(audioMethod = it) }
-                }
-                Text(when (preferredAudioMethod) {
-                    AudioMethod.AUTO -> context.getString(R.string.ui_prefers_cellular_call_redirection_falls_back_to_direct_telephony_durin)
-                    AudioMethod.LEGACY -> context.getString(R.string.ui_uses_direct_cellular_audio_capture_and_playback_without_redirection_fa)
-                    else -> context.getString(R.string.ui_uses_cellular_call_redirection_only_requires_android_13_and_privileged)
-                } + context.getString(R.string.ui_changes_apply_to_the_next_call), style = MaterialTheme.typography.bodySmall)
-                if (preferredAudioMethod != cur.audioMethod) {
-                    Text(context.getString(R.string.ui_applies_after_current_calls_end), style = MaterialTheme.typography.bodySmall)
-                }
             }
             Section(context.getString(R.string.ui_diagnostics)) {
                 Text("Android ${Build.VERSION.RELEASE}, API ${Build.VERSION.SDK_INT}")
@@ -289,6 +279,53 @@ private fun Screen(rt: GatewayRuntime, editor: SipSettingsDraft, modifier: Modif
         Section(context.getString(R.string.ui_log)) {
             Text(log.takeLast(60).reversed().joinToString("\n"), fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp, lineHeight = 14.sp)
+        }
+    }
+}
+
+@Composable
+private fun AudioModeSection(state: AudioModeControlState, select: (Int) -> Unit) {
+    val context = LocalContext.current
+    fun modeName(method: Int) = context.getString(when (method) {
+        AudioMethod.AUTO -> R.string.ui_audio_policy_auto
+        AudioMethod.LEGACY -> R.string.ui_audio_policy_direct
+        AudioMethod.OFFICIAL -> R.string.ui_audio_policy_redirection
+        else -> R.string.ui_status_unavailable
+    })
+    Section(context.getString(R.string.ui_audio_mode_controls)) {
+        Text(context.getString(R.string.ui_audio_applied_policy, modeName(state.appliedMethod)))
+        Text(when (state.backendDisplay) {
+            AudioBackendDisplay.ACTIVE -> context.getString(R.string.ui_audio_live_backend,
+                context.displayStatus(state.currentBackend))
+            AudioBackendDisplay.CONNECTING -> context.getString(R.string.ui_audio_backend_connecting)
+            AudioBackendDisplay.IDLE -> context.getString(R.string.ui_audio_backend_idle)
+            AudioBackendDisplay.UNAVAILABLE -> context.getString(R.string.ui_audio_backend_unavailable)
+        }, style = MaterialTheme.typography.bodyMedium)
+        if (state.lastBackend.isNotEmpty()) {
+            Text(context.getString(R.string.ui_audio_previous_backend, context.displayStatus(state.lastBackend)),
+                style = MaterialTheme.typography.bodySmall)
+        }
+        Choice(context.getString(R.string.ui_audio_select_policy),
+            listOf(AudioMethod.AUTO, AudioMethod.LEGACY, AudioMethod.OFFICIAL), state.selectedMethod,
+            { method -> context.getString(when (method) {
+                AudioMethod.AUTO -> R.string.ui_audio_button_auto
+                AudioMethod.LEGACY -> R.string.ui_audio_button_direct
+                else -> R.string.ui_audio_button_redirection
+            }) }, enabled = { it != AudioMethod.OFFICIAL || Build.VERSION.SDK_INT >= 33 },
+            onSelect = select)
+        if (state.changePending) {
+            Text(context.getString(R.string.ui_audio_pending_policy, modeName(state.selectedMethod)),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+        }
+        Text(context.getString(when (state.selectedMethod) {
+            AudioMethod.AUTO -> R.string.ui_audio_auto_description
+            AudioMethod.LEGACY -> R.string.ui_audio_direct_description
+            else -> R.string.ui_audio_redirection_description
+        }), style = MaterialTheme.typography.bodySmall)
+        Text(context.getString(R.string.ui_audio_selection_saved), style = MaterialTheme.typography.bodySmall)
+        Text(context.getString(R.string.ui_audio_not_network_mode), style = MaterialTheme.typography.bodySmall)
+        if (Build.VERSION.SDK_INT < 33) {
+            Text(context.getString(R.string.ui_audio_redirection_unsupported), style = MaterialTheme.typography.bodySmall)
         }
     }
 }

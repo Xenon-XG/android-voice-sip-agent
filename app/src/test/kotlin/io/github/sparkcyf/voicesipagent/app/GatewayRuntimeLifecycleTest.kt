@@ -387,6 +387,42 @@ class GatewayRuntimeLifecycleTest {
         assertFalse(f.runtime.health.value.takeoverOffPending)
     }
 
+    @Test fun audioModeButtonsPreserveQueuedSipEditsAndCanCancelTheirOwnChange(): Unit = Fixture(enabled = true).use { f ->
+        f.connect()
+        `when`(f.runtime.cellular.hasCalls).thenReturn(true)
+        f.runtime.applySettings { it.copy(inboundTarget = "queued-target") }
+        f.runtime.applySettings { it.copy(audioMethod = AudioMethod.LEGACY) }
+        f.drain()
+        assertEquals(AudioMethod.AUTO, f.runtime.settings.audioMethod)
+        assertEquals(AudioMethod.LEGACY, f.runtime.pendingSettingsFlow.value?.audioMethod)
+        assertEquals("queued-target", f.runtime.pendingSettingsFlow.value?.inboundTarget)
+        verify(f.endpoints.constructed().single(), never()).stop(anyLong(), anyBoolean())
+
+        // Re-selecting the applied audio policy must not discard an unrelated pending SIP edit.
+        f.runtime.applySettings { it.copy(audioMethod = AudioMethod.AUTO) }
+        f.drain()
+        assertEquals(AudioMethod.AUTO, f.runtime.pendingSettingsFlow.value?.audioMethod)
+        assertEquals("queued-target", f.runtime.pendingSettingsFlow.value?.inboundTarget)
+        assertTrue(f.runtime.health.value.settingsPending)
+        `when`(f.runtime.cellular.hasCalls).thenReturn(false)
+        f.callsChanged(CallSnapshot())
+        f.drain()
+        assertEquals(AudioMethod.AUTO, f.runtime.settings.audioMethod)
+        assertEquals("queued-target", f.runtime.settings.inboundTarget)
+        assertNull(f.runtime.pendingSettingsFlow.value)
+    }
+
+    @Test fun idleAudioModeChangeDoesNotRestartSip(): Unit = Fixture(enabled = true).use { f ->
+        f.connect()
+        val endpoint = f.endpoints.constructed().single()
+        f.runtime.applySettings { it.copy(audioMethod = AudioMethod.LEGACY) }
+        f.drain()
+        assertEquals(AudioMethod.LEGACY, f.runtime.settings.audioMethod)
+        assertNull(f.runtime.pendingSettingsFlow.value)
+        assertEquals(1, f.endpoints.constructed().size)
+        verify(endpoint, never()).stop(anyLong(), anyBoolean())
+    }
+
     @Test fun settingsQueuedDuringCallAccumulateAndApplyTogether(): Unit = Fixture(enabled = true).use { f ->
         f.connect()
         `when`(f.runtime.cellular.hasCalls).thenReturn(true)

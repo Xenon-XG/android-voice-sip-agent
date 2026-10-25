@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_audio_mode_controls">"Audio interface mode"</string>
+    <string name="ui_audio_applied_policy">"Applied strategy: %1$s"</string>
+    <string name="ui_audio_policy_auto">"Automatic switching"</string>
+    <string name="ui_audio_policy_direct">"Fixed Direct"</string>
+    <string name="ui_audio_policy_redirection">"Fixed redirection"</string>
+    <string name="ui_audio_live_backend">"Current interface: %1$s"</string>
+    <string name="ui_audio_backend_connecting">"Current interface: opening call audio"</string>
+    <string name="ui_audio_backend_idle">"Current interface: inactive, waiting for a call"</string>
+    <string name="ui_audio_backend_unavailable">"Current interface: status unavailable"</string>
+    <string name="ui_audio_previous_backend">"Last interface used: %1$s"</string>
+    <string name="ui_audio_select_policy">"Choose strategy"</string>
+    <string name="ui_audio_button_auto">"Auto"</string>
+    <string name="ui_audio_button_direct">"Direct"</string>
+    <string name="ui_audio_button_redirection">"Redirect"</string>
+    <string name="ui_audio_pending_policy">"Queued strategy: %1$s. Applies after the current call ends."</string>
+    <string name="ui_audio_auto_description">"Tries call redirection first, then Direct if setup or in-call audio recovery requires a fallback."</string>
+    <string name="ui_audio_direct_description">"Uses only the Direct cellular audio interface; does not switch to redirection."</string>
+    <string name="ui_audio_redirection_description">"Uses only call redirection; does not switch to Direct."</string>
+    <string name="ui_audio_selection_saved">"Selections are saved automatically. Changes during a call wait until it ends."</string>
+    <string name="ui_audio_not_network_mode">"This controls cellular audio interfaces, not SIP, VPN or proxy routing."</string>
+    <string name="ui_audio_redirection_unsupported">"Call redirection is unavailable on this Android version."</string>
     <string name="app_name">"Voice SIP Agent"</string>
     <string name="ui_takeover">"Takeover"</string>
     <string name="ui_take_over_calls">"Take over calls"</string>
